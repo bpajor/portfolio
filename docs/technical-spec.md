@@ -119,6 +119,28 @@ docs/
 
 ## 5. Core Domain Model
 
+### profile
+
+Single public professional profile used by the website API and MCP tools.
+
+Fields:
+
+- `id`
+- `full_name`
+- `headline`
+- `short_bio`
+- `long_bio`
+- `location`
+- `current_company`
+- `focus_areas`
+- `skills`
+- `github_url`
+- `linkedin_url`
+- `email`
+- `profile_image_path`
+- `created_at`
+- `updated_at`
+
 ### users
 
 Admin-only users.

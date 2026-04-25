@@ -12,28 +12,28 @@
       "id": "002",
       "title": "Create PostgreSQL schema and migrations",
       "priority": 2,
-      "status": "pending",
+      "status": "completed",
       "file": ".agent/tasks/TASK-002.json"
     },
     {
       "id": "003",
       "title": "Implement Go API foundation",
       "priority": 3,
-      "status": "pending",
+      "status": "completed",
       "file": ".agent/tasks/TASK-003.json"
     },
     {
       "id": "004",
       "title": "Build public Next.js website",
       "priority": 4,
-      "status": "pending",
+      "status": "completed",
       "file": ".agent/tasks/TASK-004.json"
     },
     {
       "id": "005",
       "title": "Build admin panel and publishing flow",
       "priority": 5,
-      "status": "pending",
+      "status": "in_progress",
       "file": ".agent/tasks/TASK-005.json"
     },
     {

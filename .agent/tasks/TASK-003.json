@@ -1,7 +1,7 @@
 {
   "id": "003",
   "title": "Implement Go API foundation",
-  "status": "pending",
+  "status": "completed",
   "goal": "Build the base Go REST API with routing, config, database connection, logging, healthcheck, and security middleware.",
   "scope": [
     "Add chi router.",
@@ -15,5 +15,15 @@
     "go test ./... passes.",
     "health endpoint returns 200.",
     "public endpoints return seeded content."
+  ],
+  "notes": [
+    "Added chi-based routing with request IDs, real IP handling, panic recovery, request logging, CORS, security headers, request body limits, and IP-based rate limiting.",
+    "Added API config for database URL, allowed origins, body limit, and server timeout settings.",
+    "Added a pgxpool PostgreSQL connection helper with conservative connection limits for the low-cost deployment target.",
+    "Added structured profile and project repository contracts with a static fallback that matches the seeded database content.",
+    "Added public /api/healthz, /api/profile, /api/projects, and /api/projects/{slug} endpoints.",
+    "Installed local Go 1.26.2 into .tools/go and ran gofmt on apps/api and apps/mcp.",
+    "go test ./... passes for apps/api.",
+    "go test ./... passes for apps/mcp."
   ]
 }

@@ -14,6 +14,7 @@ import {
 
 const projects = [
   {
+    slug: "pay-management-system",
     title: "Pay Management System",
     eyebrow: "Business operations",
     description: "A system for monitoring employee payouts and keeping payroll-related workflows visible to internal users.",
@@ -21,9 +22,10 @@ const projects = [
     built: "Designed an application surface for tracking payout state, business rules, and operational review paths.",
     signals: ["Domain modeling", "Workflow state", "Admin-facing UX"],
     stack: ["Backend", "Business logic", "Internal tooling"],
-    href: "https://github.com/bpajor/pay-man-sys"
+    href: "/projects/pay-management-system"
   },
   {
+    slug: "pol-elections-2023-rest-api",
     title: "PolElections2023 REST API",
     eyebrow: "Public data API",
     description: "A REST API exposing Polish parliamentary election results from 2023 through structured endpoints.",
@@ -31,7 +33,7 @@ const projects = [
     built: "Implemented an authenticated API layer for exploring election results and related entities through clear REST contracts.",
     signals: ["API design", "JWT auth", "Structured public data"],
     stack: ["Nest.js", "TypeScript", "Mongoose", "JWT"],
-    href: "https://github.com/bpajor/PolElections2023-rest-api"
+    href: "/projects/pol-elections-2023-rest-api"
   }
 ];
 
@@ -93,9 +95,10 @@ export default function HomePage() {
           </Link>
 
           <nav className="hidden items-center gap-7 text-sm text-slate-400 sm:flex">
-            <a href="#about" className="hover:text-white">About</a>
-            <a href="#projects" className="hover:text-white">Projects</a>
-            <a href="#writing" className="hover:text-white">Writing</a>
+            <Link href="/about" className="hover:text-white">About</Link>
+            <Link href="/projects" className="hover:text-white">Projects</Link>
+            <Link href="/blog" className="hover:text-white">Writing</Link>
+            <Link href="/contact" className="hover:text-white">Contact</Link>
           </nav>
         </div>
       </header>
@@ -291,7 +294,7 @@ export default function HomePage() {
               </div>
 
               <div className="mt-auto pt-6 font-mono text-xs text-sky-300">
-                View repository
+                View case study
               </div>
             </a>
           ))}

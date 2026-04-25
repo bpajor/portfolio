@@ -1,7 +1,7 @@
 {
   "id": "002",
   "title": "Create PostgreSQL schema and migrations",
-  "status": "pending",
+  "status": "completed",
   "goal": "Define and migrate the database schema for users, posts, comments, projects, media, sessions, and contact messages.",
   "scope": [
     "Add goose migrations.",
@@ -13,5 +13,13 @@
     "Migrations run on a disposable PostgreSQL container.",
     "sqlc generates code successfully.",
     "Migration down path works for early migrations where practical."
+  ],
+  "notes": [
+    "Added the initial Goose PostgreSQL migration with profile, users, media, projects, posts, post tags, comments, sessions, contact messages, and audit log tables.",
+    "Seeded the public profile content and the two initial portfolio projects.",
+    "Added sqlc configuration and typed query files for profile, projects, posts, comments, auth/session, contact messages, media, and audit log.",
+    "Installed local sqlc v1.31.1 into .tools/bin and generated typed Go query code successfully.",
+    "Verified migration Up in a disposable postgres:13 Docker container; seeded profile_count=1 and project_count=2.",
+    "Verified migration Down in the same disposable container; remaining public base tables=0."
   ]
 }

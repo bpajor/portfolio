@@ -1,7 +1,7 @@
 {
   "id": "004",
   "title": "Build public Next.js website",
-  "status": "pending",
+  "status": "completed",
   "goal": "Create the public dark technical website in English.",
   "scope": [
     "Build home page.",
@@ -17,5 +17,14 @@
     "Lint passes.",
     "Browser screenshots show non-overlapping polished UI.",
     "Profile image renders correctly."
+  ],
+  "notes": [
+    "Added public /about, /projects, /projects/[slug], /blog, /blog/[slug], and /contact routes.",
+    "Added shared site data and a reusable page frame for secondary public pages.",
+    "Updated the homepage navigation and project cards to link into the new public routes.",
+    "npm --workspace apps/web run typecheck passes.",
+    "npm --workspace apps/web run lint passes.",
+    "npm --workspace apps/web run build passes and prerenders all static project and blog detail routes.",
+    "Verified representative desktop and mobile views through Chrome DevTools MCP screenshots."
   ]
 }

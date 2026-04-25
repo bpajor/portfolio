@@ -1,7 +1,7 @@
 {
   "id": "005",
   "title": "Build admin panel and publishing flow",
-  "status": "pending",
+  "status": "in_progress",
   "goal": "Allow the owner to log in and manage posts, projects, media, and settings.",
   "scope": [
     "Implement admin login.",
@@ -15,5 +15,14 @@
     "Admin cannot access dashboard without login.",
     "Admin can create a draft post.",
     "Admin can publish a post visible on public blog."
+  ],
+  "notes": [
+    "Added the admin login screen.",
+    "Added dashboard, posts list, new post, edit post, comments moderation, projects, and media pages.",
+    "Added shared admin shell/navigation components.",
+    "npm --workspace apps/web run typecheck passes.",
+    "npm --workspace apps/web run lint passes.",
+    "npm --workspace apps/web run build passes and prerenders admin routes.",
+    "Secure session cookies, backend login, database-backed draft creation, and publish flow still need API implementation before this task can be marked completed."
   ]
 }
