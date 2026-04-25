@@ -1,0 +1,20 @@
+{
+  "id": "007",
+  "title": "Implement secure MCP server",
+  "status": "pending",
+  "goal": "Expose authorized MCP tools for AI agents to interact with profile, projects, blog content, and selected admin workflows.",
+  "scope": [
+    "Create Go MCP server using official MCP Go SDK.",
+    "Expose get_profile, list_projects, get_project, list_blog_posts, get_blog_post, search_content, get_site_context.",
+    "Add admin-only create_draft_post and moderate_comment.",
+    "Add bearer token auth.",
+    "Validate Origin for HTTP transport.",
+    "Audit write/admin tool calls."
+  ],
+  "verification": [
+    "MCP read-only tools work with valid token.",
+    "Unauthorized requests fail.",
+    "Admin-only tools reject read-only tokens.",
+    "No tool can execute shell commands or read arbitrary files."
+  ]
+}

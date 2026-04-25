@@ -1,0 +1,75 @@
+{
+  "project": "portfolio-blog-mcp-platform",
+  "tasks": [
+    {
+      "id": "001",
+      "title": "Scaffold monorepo and base tooling",
+      "priority": 1,
+      "status": "completed",
+      "file": ".agent/tasks/TASK-001.json"
+    },
+    {
+      "id": "002",
+      "title": "Create PostgreSQL schema and migrations",
+      "priority": 2,
+      "status": "pending",
+      "file": ".agent/tasks/TASK-002.json"
+    },
+    {
+      "id": "003",
+      "title": "Implement Go API foundation",
+      "priority": 3,
+      "status": "pending",
+      "file": ".agent/tasks/TASK-003.json"
+    },
+    {
+      "id": "004",
+      "title": "Build public Next.js website",
+      "priority": 4,
+      "status": "pending",
+      "file": ".agent/tasks/TASK-004.json"
+    },
+    {
+      "id": "005",
+      "title": "Build admin panel and publishing flow",
+      "priority": 5,
+      "status": "pending",
+      "file": ".agent/tasks/TASK-005.json"
+    },
+    {
+      "id": "006",
+      "title": "Implement anonymous comments with moderation",
+      "priority": 6,
+      "status": "pending",
+      "file": ".agent/tasks/TASK-006.json"
+    },
+    {
+      "id": "007",
+      "title": "Implement secure MCP server",
+      "priority": 7,
+      "status": "pending",
+      "file": ".agent/tasks/TASK-007.json"
+    },
+    {
+      "id": "008",
+      "title": "Add SEO and GEO layer",
+      "priority": 8,
+      "status": "pending",
+      "file": ".agent/tasks/TASK-008.json"
+    },
+    {
+      "id": "009",
+      "title": "Prepare Docker Compose deployment",
+      "priority": 9,
+      "status": "pending",
+      "file": ".agent/tasks/TASK-009.json"
+    },
+    {
+      "id": "010",
+      "title": "Prepare GCP and DNS deployment guide",
+      "priority": 10,
+      "status": "pending",
+      "file": ".agent/tasks/TASK-010.json"
+    }
+  ]
+}

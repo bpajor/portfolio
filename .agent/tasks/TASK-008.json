@@ -1,0 +1,20 @@
+{
+  "id": "008",
+  "title": "Add SEO and GEO layer",
+  "status": "pending",
+  "goal": "Make public content discoverable, structured, and easy for search engines and AI systems to understand.",
+  "scope": [
+    "Add metadata to every public page.",
+    "Add sitemap.xml.",
+    "Add robots.txt.",
+    "Add RSS feed.",
+    "Add JSON-LD for Person, WebSite, ProfilePage, BlogPosting, BreadcrumbList, and project pages.",
+    "Add llms.txt and ai-context.json."
+  ],
+  "verification": [
+    "Sitemap lists public canonical URLs.",
+    "Structured data matches visible content.",
+    "Public pages have meaningful titles and descriptions.",
+    "RSS validates structurally."
+  ]
+}

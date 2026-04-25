@@ -1,0 +1,19 @@
+{
+  "id": "006",
+  "title": "Implement anonymous comments with moderation",
+  "status": "pending",
+  "goal": "Allow anonymous users to submit comments while protecting the site from spam and abuse.",
+  "scope": [
+    "Add public comment submission endpoint.",
+    "Add Turnstile/honeypot support.",
+    "Store comments as pending by default.",
+    "Add admin moderation actions.",
+    "Render only approved comments publicly."
+  ],
+  "verification": [
+    "Anonymous comment enters pending state.",
+    "Pending comment is not public.",
+    "Approved comment appears on post page.",
+    "Rate limits are enforced."
+  ]
+}

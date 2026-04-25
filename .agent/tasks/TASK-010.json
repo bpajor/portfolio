@@ -1,0 +1,20 @@
+{
+  "id": "010",
+  "title": "Prepare GCP and DNS deployment guide",
+  "status": "pending",
+  "goal": "Document and optionally automate the low-cost GCP deployment and Cloudflare DNS setup.",
+  "scope": [
+    "Document VM creation.",
+    "Document firewall rules.",
+    "Document Docker installation.",
+    "Document Caddy HTTPS setup.",
+    "Document Cloudflare DNS records.",
+    "Document Cloud Storage backup bucket.",
+    "Document billing alerts."
+  ],
+  "verification": [
+    "Deployment guide can be followed from a clean GCP project.",
+    "Cost-sensitive resources are explicitly called out.",
+    "Security checklist is included before launch."
+  ]
+}

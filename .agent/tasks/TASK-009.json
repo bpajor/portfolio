@@ -1,0 +1,20 @@
+{
+  "id": "009",
+  "title": "Prepare Docker Compose deployment",
+  "status": "pending",
+  "goal": "Run the full stack locally and on a small VM using Docker Compose.",
+  "scope": [
+    "Add Dockerfile for web.",
+    "Add Dockerfile for API.",
+    "Add Dockerfile for MCP.",
+    "Add compose file with Caddy, web, api, mcp, postgres.",
+    "Add local development compose override.",
+    "Add backup script for PostgreSQL dumps."
+  ],
+  "verification": [
+    "docker compose up starts all services.",
+    "Caddy routes web, api, and mcp correctly.",
+    "PostgreSQL is not exposed publicly.",
+    "Backup script creates a dump."
+  ]
+}

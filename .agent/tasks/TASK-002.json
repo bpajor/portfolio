@@ -1,0 +1,17 @@
+{
+  "id": "002",
+  "title": "Create PostgreSQL schema and migrations",
+  "status": "pending",
+  "goal": "Define and migrate the database schema for users, posts, comments, projects, media, sessions, and contact messages.",
+  "scope": [
+    "Add goose migrations.",
+    "Add sqlc config.",
+    "Create typed queries for public reads and admin writes.",
+    "Seed initial projects and profile content."
+  ],
+  "verification": [
+    "Migrations run on a disposable PostgreSQL container.",
+    "sqlc generates code successfully.",
+    "Migration down path works for early migrations where practical."
+  ]
+}

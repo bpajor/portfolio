@@ -1,0 +1,19 @@
+{
+  "id": "005",
+  "title": "Build admin panel and publishing flow",
+  "status": "pending",
+  "goal": "Allow the owner to log in and manage posts, projects, media, and settings.",
+  "scope": [
+    "Implement admin login.",
+    "Implement secure session cookies.",
+    "Add post create/edit/publish flow.",
+    "Add project editing.",
+    "Add media upload foundation.",
+    "Add admin dashboard."
+  ],
+  "verification": [
+    "Admin cannot access dashboard without login.",
+    "Admin can create a draft post.",
+    "Admin can publish a post visible on public blog."
+  ]
+}

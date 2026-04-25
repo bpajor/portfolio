@@ -1,0 +1,24 @@
+{
+  "id": "001",
+  "title": "Scaffold monorepo and base tooling",
+  "status": "completed",
+  "goal": "Create the initial repository layout for the web app, Go API, Go MCP server, database migrations, deployment files, and shared documentation.",
+  "scope": [
+    "Create apps/web, apps/api, apps/mcp, db, infra, deploy directories.",
+    "Initialize Next.js with TypeScript and Tailwind.",
+    "Initialize Go modules for api and mcp.",
+    "Add basic Makefile or task runner commands.",
+    "Add .env.example with required variables.",
+    "Copy the profile image into web public assets."
+  ],
+  "verification": [
+    "Frontend dev server starts.",
+    "Go API builds.",
+    "Go MCP server builds.",
+    "Repository contains no real secrets."
+  ],
+  "notes": [
+    "Next.js production build, lint, typecheck, and production npm audit pass.",
+    "Go API and MCP source were scaffolded, but Go build verification could not run because Go is not installed or not available in PATH on this machine."
+  ]
+}

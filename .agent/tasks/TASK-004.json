@@ -1,0 +1,21 @@
+{
+  "id": "004",
+  "title": "Build public Next.js website",
+  "status": "pending",
+  "goal": "Create the public dark technical website in English.",
+  "scope": [
+    "Build home page.",
+    "Build about page.",
+    "Build project list and detail pages.",
+    "Build blog list and detail pages.",
+    "Build contact page.",
+    "Use the supplied profile photo.",
+    "Ensure responsive layout on desktop and mobile."
+  ],
+  "verification": [
+    "Typecheck passes.",
+    "Lint passes.",
+    "Browser screenshots show non-overlapping polished UI.",
+    "Profile image renders correctly."
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "id": "003",
+  "title": "Implement Go API foundation",
+  "status": "pending",
+  "goal": "Build the base Go REST API with routing, config, database connection, logging, healthcheck, and security middleware.",
+  "scope": [
+    "Add chi router.",
+    "Add config loading.",
+    "Add PostgreSQL connection pool.",
+    "Add health endpoint.",
+    "Add request logging, recovery, CORS, body limits, and rate-limit foundation.",
+    "Add public project and profile endpoints."
+  ],
+  "verification": [
+    "go test ./... passes.",
+    "health endpoint returns 200.",
+    "public endpoints return seeded content."
+  ]
+}
