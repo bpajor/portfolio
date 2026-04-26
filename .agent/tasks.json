@@ -47,7 +47,7 @@
       "id": "007",
       "title": "Implement secure MCP server",
       "priority": 7,
-      "status": "pending",
+      "status": "completed",
       "file": ".agent/tasks/TASK-007.json"
     },
     {
