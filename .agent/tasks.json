@@ -61,7 +61,7 @@
       "id": "009",
       "title": "Prepare Docker Compose deployment",
       "priority": 9,
-      "status": "pending",
+      "status": "completed",
       "file": ".agent/tasks/TASK-009.json"
     },
     {

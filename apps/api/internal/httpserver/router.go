@@ -126,6 +126,7 @@ func (s Server) health(w http.ResponseWriter, r *http.Request) {
 		defer cancel()
 		dbStatus = "ok"
 		if err := s.db.Ping(ctx); err != nil {
+			s.logger.Warn("database health check failed", "error", err)
 			dbStatus = "error"
 		}
 	}
