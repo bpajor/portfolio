@@ -374,6 +374,7 @@ MCP security policy:
 
 - no shell execution tools,
 - no arbitrary file read/write tools,
+- no generic SQL execution tool,
 - tool-level authorization,
 - strict input schemas,
 - audit all write/admin tool calls,

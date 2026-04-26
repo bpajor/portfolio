@@ -47,7 +47,7 @@ try {
   }
 
   $upMigration = (Get-Content -Raw $migrationFile) -split "-- \+goose Down"
-  $upMigration[0] | docker compose -f $composeFile exec -T postgres psql -U $postgresUser -d $postgresDb
+  $upMigration[0] | docker compose -f $composeFile exec -T postgres psql -v ON_ERROR_STOP=1 -U $postgresUser -d $postgresDb
 }
 finally {
   Pop-Location
