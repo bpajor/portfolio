@@ -1,7 +1,7 @@
 {
   "id": "006",
   "title": "Implement anonymous comments with moderation",
-  "status": "pending",
+  "status": "completed",
   "goal": "Allow anonymous users to submit comments while protecting the site from spam and abuse.",
   "scope": [
     "Add public comment submission endpoint.",
@@ -15,5 +15,12 @@
     "Pending comment is not public.",
     "Approved comment appears on post page.",
     "Rate limits are enforced."
+  ],
+  "notes": [
+    "Implemented public comment listing and submission endpoints with pending-by-default workflow.",
+    "Implemented admin comment queues and moderation actions for approved, spam, and deleted states.",
+    "Added frontend comment submission and admin moderation UI.",
+    "Automated checks passed: web lint, web typecheck, web build, api go test, mcp go test.",
+    "Docker-backed runtime smoke test was attempted but blocked by Docker CLI timeouts in the local environment."
   ]
 }

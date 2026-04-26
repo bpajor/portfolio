@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { SiteFrame } from "../../_components/site-frame";
 import { posts } from "../../site-data";
+import { CommentsSection } from "./comments-section";
 
 export function generateStaticParams() {
   return posts.map((post) => ({ slug: post.slug }));
@@ -45,6 +46,7 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
             </section>
           ))}
         </div>
+        <CommentsSection slug={post.slug} />
       </article>
     </SiteFrame>
   );

@@ -2,11 +2,14 @@ package httpserver
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"html"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"regexp"
 	"strings"
 	"time"
@@ -84,6 +87,8 @@ func New(cfg config.Config, logger *slog.Logger, db *pgxpool.Pool, repo content.
 		r.Get("/projects/{slug}", server.getProject)
 		r.Get("/posts", server.listPublishedPosts)
 		r.Get("/posts/{slug}", server.getPublishedPost)
+		r.Get("/posts/{slug}/comments", server.listApprovedComments)
+		r.With(httprate.LimitByIP(10, time.Hour)).Post("/posts/{slug}/comments", server.createPendingComment)
 
 		r.Route("/admin", func(r chi.Router) {
 			r.Post("/auth/login", server.adminLogin)
@@ -97,6 +102,8 @@ func New(cfg config.Config, logger *slog.Logger, db *pgxpool.Pool, repo content.
 				r.Get("/posts/{id}", server.adminGetPost)
 				r.Put("/posts/{id}", server.adminUpdatePost)
 				r.Delete("/posts/{id}", server.adminDeletePost)
+				r.Get("/comments", server.adminListComments)
+				r.Put("/comments/{id}/moderate", server.adminModerateComment)
 			})
 		})
 	})
@@ -218,6 +225,99 @@ func (s Server) getPublishedPost(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, publishedPostDetailToResponse(post))
+}
+
+func (s Server) listApprovedComments(w http.ResponseWriter, r *http.Request) {
+	if s.queries == nil {
+		writeJSON(w, http.StatusOK, []commentResponse{})
+		return
+	}
+
+	post, err := s.queries.GetPublishedPostBySlug(r.Context(), chi.URLParam(r, "slug"))
+	if errors.Is(err, pgx.ErrNoRows) {
+		writeError(w, http.StatusNotFound, "post_not_found", "Post was not found.")
+		return
+	}
+	if err != nil {
+		s.logger.Error("get post for comments failed", "error", err)
+		writeError(w, http.StatusInternalServerError, "comments_unavailable", "Comments are temporarily unavailable.")
+		return
+	}
+
+	comments, err := s.queries.ListApprovedCommentsForPost(r.Context(), post.ID)
+	if err != nil {
+		s.logger.Error("list approved comments failed", "error", err)
+		writeError(w, http.StatusInternalServerError, "comments_unavailable", "Comments are temporarily unavailable.")
+		return
+	}
+
+	out := make([]commentResponse, 0, len(comments))
+	for _, comment := range comments {
+		out = append(out, approvedCommentRowToResponse(comment))
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+func (s Server) createPendingComment(w http.ResponseWriter, r *http.Request) {
+	if s.queries == nil {
+		writeNoDatabase(w)
+		return
+	}
+
+	var req commentRequest
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", "Request body is invalid.")
+		return
+	}
+	req.DisplayName = strings.TrimSpace(req.DisplayName)
+	req.Body = strings.TrimSpace(req.Body)
+	if strings.TrimSpace(req.Website) != "" {
+		writeError(w, http.StatusBadRequest, "comment_rejected", "Comment could not be accepted.")
+		return
+	}
+	if req.DisplayName == "" || len(req.DisplayName) > 80 {
+		writeError(w, http.StatusBadRequest, "display_name_invalid", "Display name is required and must be at most 80 characters.")
+		return
+	}
+	if req.Body == "" || len(req.Body) > 3000 {
+		writeError(w, http.StatusBadRequest, "comment_body_invalid", "Comment body is required and must be at most 3000 characters.")
+		return
+	}
+	if err := s.verifyTurnstile(r.Context(), req.TurnstileToken, r.RemoteAddr); err != nil {
+		writeError(w, http.StatusForbidden, "turnstile_failed", "Comment verification failed.")
+		return
+	}
+
+	post, err := s.queries.GetPublishedPostBySlug(r.Context(), chi.URLParam(r, "slug"))
+	if errors.Is(err, pgx.ErrNoRows) {
+		writeError(w, http.StatusNotFound, "post_not_found", "Post was not found.")
+		return
+	}
+	if err != nil {
+		s.logger.Error("get post for comment failed", "error", err)
+		writeError(w, http.StatusInternalServerError, "comment_create_failed", "Comment could not be created.")
+		return
+	}
+
+	comment, err := s.queries.CreatePendingComment(r.Context(), apidb.CreatePendingCommentParams{
+		PostID:        post.ID,
+		DisplayName:   req.DisplayName,
+		Body:          req.Body,
+		IpHash:        s.privacyHash(clientIP(r)),
+		UserAgentHash: s.privacyHash(r.UserAgent()),
+	})
+	if err != nil {
+		s.logger.Error("create pending comment failed", "error", err)
+		writeError(w, http.StatusInternalServerError, "comment_create_failed", "Comment could not be created.")
+		return
+	}
+
+	writeJSON(w, http.StatusAccepted, commentCreatedResponse{
+		ID:        comment.ID.String(),
+		Status:    string(comment.Status),
+		CreatedAt: comment.CreatedAt.Time,
+		Message:   "Comment submitted and waiting for moderation.",
+	})
 }
 
 func (s Server) adminLogin(w http.ResponseWriter, r *http.Request) {
@@ -411,6 +511,60 @@ func (s Server) adminDeletePost(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+func (s Server) adminListComments(w http.ResponseWriter, r *http.Request) {
+	status, ok := parseOptionalCommentStatus(w, r.URL.Query().Get("status"))
+	if !ok {
+		return
+	}
+
+	comments, err := s.queries.AdminListComments(r.Context(), status)
+	if err != nil {
+		s.logger.Error("admin list comments failed", "error", err)
+		writeError(w, http.StatusInternalServerError, "comments_unavailable", "Comments are temporarily unavailable.")
+		return
+	}
+
+	out := make([]adminCommentResponse, 0, len(comments))
+	for _, comment := range comments {
+		out = append(out, adminCommentRowToResponse(comment))
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+func (s Server) adminModerateComment(w http.ResponseWriter, r *http.Request) {
+	id, ok := parseUUIDParam(w, r, "id")
+	if !ok {
+		return
+	}
+
+	var req moderateCommentRequest
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", "Request body is invalid.")
+		return
+	}
+	status, ok := parseCommentStatus(w, req.Status)
+	if !ok {
+		writeError(w, http.StatusBadRequest, "invalid_status", "Comment status is invalid.")
+		return
+	}
+
+	comment, err := s.queries.ModerateComment(r.Context(), apidb.ModerateCommentParams{
+		ID:     id,
+		Status: status,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		writeError(w, http.StatusNotFound, "comment_not_found", "Comment was not found.")
+		return
+	}
+	if err != nil {
+		s.logger.Error("admin moderate comment failed", "error", err)
+		writeError(w, http.StatusInternalServerError, "comment_moderation_failed", "Comment could not be moderated.")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, commentModelToResponse(comment))
+}
+
 func (s Server) replacePostTags(ctx context.Context, postID uuid.UUID, tags []string) error {
 	if err := s.queries.DeletePostTags(ctx, postID); err != nil {
 		return err
@@ -531,6 +685,46 @@ func (s Server) bodyLimit(next http.Handler) http.Handler {
 	})
 }
 
+func (s Server) verifyTurnstile(ctx context.Context, token string, remoteAddr string) error {
+	secret := strings.TrimSpace(s.cfg.TurnstileSecretKey)
+	if secret == "" || secret == "change-me" {
+		return nil
+	}
+	if strings.TrimSpace(token) == "" {
+		return errors.New("turnstile token required")
+	}
+
+	form := url.Values{}
+	form.Set("secret", secret)
+	form.Set("response", token)
+	if ip := clientIPFromRemoteAddr(remoteAddr); ip != "" {
+		form.Set("remoteip", ip)
+	}
+
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, s.cfg.TurnstileVerifyURL, strings.NewReader(form.Encode()))
+	if err != nil {
+		return err
+	}
+	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		return err
+	}
+	defer response.Body.Close()
+
+	var payload struct {
+		Success bool `json:"success"`
+	}
+	if err := json.NewDecoder(response.Body).Decode(&payload); err != nil {
+		return err
+	}
+	if !payload.Success {
+		return errors.New("turnstile verification failed")
+	}
+	return nil
+}
+
 type loginRequest struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
@@ -545,6 +739,17 @@ type postRequest struct {
 	SeoTitle        string   `json:"seoTitle"`
 	SeoDescription  string   `json:"seoDescription"`
 	Tags            []string `json:"tags"`
+}
+
+type commentRequest struct {
+	DisplayName    string `json:"displayName"`
+	Body           string `json:"body"`
+	Website        string `json:"website"`
+	TurnstileToken string `json:"turnstileToken"`
+}
+
+type moderateCommentRequest struct {
+	Status string `json:"status"`
 }
 
 func (r postRequest) slug() string {
@@ -603,6 +808,34 @@ type postResponse struct {
 	Tags                 []string   `json:"tags"`
 	CreatedAt            time.Time  `json:"createdAt"`
 	UpdatedAt            time.Time  `json:"updatedAt"`
+}
+
+type commentResponse struct {
+	ID          string    `json:"id"`
+	PostID      string    `json:"postId"`
+	DisplayName string    `json:"displayName"`
+	Body        string    `json:"body"`
+	Status      string    `json:"status"`
+	CreatedAt   time.Time `json:"createdAt"`
+}
+
+type commentCreatedResponse struct {
+	ID        string    `json:"id"`
+	Status    string    `json:"status"`
+	CreatedAt time.Time `json:"createdAt"`
+	Message   string    `json:"message"`
+}
+
+type adminCommentResponse struct {
+	ID          string     `json:"id"`
+	PostID      string     `json:"postId"`
+	PostTitle   string     `json:"postTitle"`
+	PostSlug    string     `json:"postSlug"`
+	DisplayName string     `json:"displayName"`
+	Body        string     `json:"body"`
+	Status      string     `json:"status"`
+	CreatedAt   time.Time  `json:"createdAt"`
+	ModeratedAt *time.Time `json:"moderatedAt,omitempty"`
 }
 
 func decodePostRequest(w http.ResponseWriter, r *http.Request) (postRequest, bool) {
@@ -714,6 +947,70 @@ func postModelToResponse(post apidb.Post, tags []string) postResponse {
 	}
 }
 
+func approvedCommentRowToResponse(comment apidb.ListApprovedCommentsForPostRow) commentResponse {
+	return commentResponse{
+		ID:          comment.ID.String(),
+		PostID:      comment.PostID.String(),
+		DisplayName: comment.DisplayName,
+		Body:        comment.Body,
+		Status:      string(comment.Status),
+		CreatedAt:   comment.CreatedAt.Time,
+	}
+}
+
+func adminCommentRowToResponse(comment apidb.AdminListCommentsRow) adminCommentResponse {
+	return adminCommentResponse{
+		ID:          comment.ID.String(),
+		PostID:      comment.PostID.String(),
+		PostTitle:   comment.PostTitle,
+		PostSlug:    comment.PostSlug,
+		DisplayName: comment.DisplayName,
+		Body:        comment.Body,
+		Status:      string(comment.Status),
+		CreatedAt:   comment.CreatedAt.Time,
+		ModeratedAt: pgTimePtr(comment.ModeratedAt),
+	}
+}
+
+func commentModelToResponse(comment apidb.Comment) commentResponse {
+	return commentResponse{
+		ID:          comment.ID.String(),
+		PostID:      comment.PostID.String(),
+		DisplayName: comment.DisplayName,
+		Body:        comment.Body,
+		Status:      string(comment.Status),
+		CreatedAt:   comment.CreatedAt.Time,
+	}
+}
+
+func parseOptionalCommentStatus(w http.ResponseWriter, raw string) (apidb.NullCommentStatus, bool) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return apidb.NullCommentStatus{}, true
+	}
+	status, ok := parseCommentStatus(w, raw)
+	if !ok {
+		writeError(w, http.StatusBadRequest, "invalid_status", "Comment status is invalid.")
+		return apidb.NullCommentStatus{}, false
+	}
+	return apidb.NullCommentStatus{CommentStatus: status, Valid: true}, true
+}
+
+func parseCommentStatus(_ http.ResponseWriter, raw string) (apidb.CommentStatus, bool) {
+	switch apidb.CommentStatus(strings.TrimSpace(raw)) {
+	case apidb.CommentStatusPending:
+		return apidb.CommentStatusPending, true
+	case apidb.CommentStatusApproved:
+		return apidb.CommentStatusApproved, true
+	case apidb.CommentStatusSpam:
+		return apidb.CommentStatusSpam, true
+	case apidb.CommentStatusDeleted:
+		return apidb.CommentStatusDeleted, true
+	default:
+		return "", false
+	}
+}
+
 func pgTimePtr(value pgtype.Timestamptz) *time.Time {
 	if !value.Valid {
 		return nil
@@ -723,6 +1020,29 @@ func pgTimePtr(value pgtype.Timestamptz) *time.Time {
 
 func pgUUID(id uuid.UUID) pgtype.UUID {
 	return pgtype.UUID{Bytes: id, Valid: true}
+}
+
+func (s Server) privacyHash(value string) string {
+	sum := sha256.Sum256([]byte(s.cfg.PrivacyHashSecret + "\x00" + value))
+	return hex.EncodeToString(sum[:])
+}
+
+func clientIP(r *http.Request) string {
+	if ip := strings.TrimSpace(r.Header.Get("CF-Connecting-IP")); ip != "" {
+		return ip
+	}
+	if ip := strings.TrimSpace(r.Header.Get("X-Forwarded-For")); ip != "" {
+		return strings.TrimSpace(strings.Split(ip, ",")[0])
+	}
+	return clientIPFromRemoteAddr(r.RemoteAddr)
+}
+
+func clientIPFromRemoteAddr(remoteAddr string) string {
+	host := remoteAddr
+	if index := strings.LastIndex(remoteAddr, ":"); index > -1 {
+		host = remoteAddr[:index]
+	}
+	return strings.Trim(host, "[]")
 }
 
 func adminFromContext(ctx context.Context) adminSession {
