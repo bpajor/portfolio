@@ -91,6 +91,24 @@ Recommended deployment for V1: a single small VM running Docker Compose. This ke
 - SSH restricted to owner IP or IAP when possible.
 - Cloudflare DNS and proxy.
 
+### Testing
+
+- Go unit tests with the standard `testing` package.
+- Go HTTP handler tests with `httptest`.
+- PostgreSQL integration tests with disposable containers or a dedicated CI service container.
+- SQL migration tests against PostgreSQL before deployment.
+- Frontend unit/component tests where behavior is non-trivial.
+- Playwright E2E tests for browser flows.
+- Smoke tests against deployed staging and production health endpoints.
+
+### CI/CD
+
+- GitHub Actions for pull request and main branch pipelines.
+- GitHub protected environments for staging and production.
+- Staging deployment runs automatically after CI succeeds on `main`.
+- Production deployment requires manual developer approval after staging smoke/E2E checks pass.
+- CI uses environment-scoped secrets only; production secrets are not available to pull request workflows.
+
 ## 4. Repository Structure
 
 ```text
@@ -454,7 +472,133 @@ MCP:
 - audit logs,
 - explicit allowlist of tools.
 
-## 12. Cost Plan
+CI/CD:
+
+- no secrets exposed to forked pull requests,
+- protected GitHub environments for staging and production,
+- manual approval before production deploy,
+- least-privilege GCP service account for deployment,
+- separate deployment credentials from backup credentials,
+- artifact provenance retained through build and deploy jobs,
+- deployment logs kept without leaking secret values.
+
+## 12. Testing Strategy
+
+### Test Pyramid
+
+Unit tests:
+
+- Go auth helpers, config parsing, validators, slug normalization, response mapping, MCP tool helpers.
+- Frontend utility functions and form validation behavior where logic exists.
+
+Integration tests:
+
+- PostgreSQL migration Up/Down.
+- sqlc query behavior for profile, projects, posts, comments, sessions, and audit logs.
+- Go API routes with a disposable PostgreSQL database.
+- Admin auth/session flows with real cookies and hashed session tokens.
+- MCP tools against isolated test data.
+
+E2E tests:
+
+- Public website navigation and rendering.
+- Admin login.
+- Draft creation.
+- Publishing a post and verifying it appears publicly.
+- Anonymous comment submission and moderation.
+- Contact flow.
+
+Smoke tests:
+
+- `/api/healthz`.
+- public homepage.
+- admin login endpoint rejects invalid credentials.
+- MCP health endpoint.
+- database connectivity check in staging.
+
+### Execution Policy
+
+- Unit tests run on every pull request and push.
+- Integration tests run on every pull request and push to `main`.
+- E2E tests run on pull requests that touch app code and always before staging approval.
+- Staging smoke/E2E tests must pass before production deploy can be approved.
+- Test data must be disposable and must not contain real user secrets.
+
+## 13. CI/CD and Environments
+
+### Pull Request Pipeline
+
+Required checks:
+
+- install dependencies,
+- frontend lint,
+- frontend typecheck,
+- frontend build,
+- Go format check,
+- Go tests for API and MCP,
+- sqlc generation check,
+- migration validation against PostgreSQL,
+- targeted E2E tests when web/API paths change.
+
+### Main Branch Pipeline
+
+After merge to `main`:
+
+- repeat required checks,
+- build deployable artifacts/images,
+- deploy to staging,
+- run staging migrations,
+- run staging smoke tests,
+- run staging E2E tests.
+
+### Approval Gate
+
+Production deployment is blocked until the developer manually approves the GitHub `production` environment. Approval should happen only after reviewing:
+
+- CI status,
+- staging smoke/E2E results,
+- migration summary,
+- expected infrastructure changes,
+- rollback note.
+
+### Production Deployment
+
+After approval:
+
+- deploy the approved artifact to production,
+- run production migrations,
+- run production smoke checks,
+- record deployment metadata,
+- keep previous artifact/image available for rollback.
+
+### Environment Model
+
+Local:
+
+- developer machine,
+- local Docker PostgreSQL,
+- local `.env` only.
+
+CI:
+
+- ephemeral GitHub Actions runner,
+- service-container PostgreSQL,
+- no production secrets.
+
+Staging:
+
+- separate app/database state from production,
+- low-cost environment that may share the same VM only if isolated by compose project, database, ports, and secrets,
+- seeded test/admin data only.
+
+Production:
+
+- real domain,
+- production database,
+- production secrets,
+- protected by manual approval.
+
+## 14. Cost Plan
 
 Target: less than 50 PLN/month.
 
@@ -474,7 +618,7 @@ Budget controls:
 - log retention limits,
 - no managed SQL until needed.
 
-## 13. Delivery Phases
+## 15. Delivery Phases
 
 ### Phase 1: Foundation
 
@@ -529,10 +673,23 @@ Budget controls:
 - restore test,
 - monitoring and budget alerts.
 
-## 14. Open Decisions
+### Phase 7: Testing and CI/CD
+
+- unit test suites,
+- integration test suites,
+- Playwright E2E tests,
+- GitHub Actions PR checks,
+- staging deployment workflow,
+- manual production approval gate,
+- production deploy workflow,
+- rollback documentation.
+
+## 16. Open Decisions
 
 - Domain name.
 - Whether admin MFA is mandatory in V1.
 - Whether comments require email address or display name only.
 - Whether MCP is private-only in V1 or has a read-only public mode.
 - Whether blog editor should use Markdown, rich text, or both.
+- Whether staging should run on the same low-cost VM with isolated compose resources or a separate temporary VM.
+- Which E2E scenarios are mandatory for every pull request versus only before deployment.

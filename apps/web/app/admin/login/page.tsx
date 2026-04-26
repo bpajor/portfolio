@@ -1,5 +1,7 @@
+import { Suspense } from "react";
 import Link from "next/link";
 import { LockKeyhole } from "lucide-react";
+import { AdminLoginForm } from "./login-form";
 
 export default function AdminLoginPage() {
   return (
@@ -19,19 +21,9 @@ export default function AdminLoginPage() {
           <p className="mt-2 text-sm leading-6 text-slate-400">Owner-only access for publishing, moderation, and portfolio management.</p>
         </div>
 
-        <form className="mt-6 grid gap-4">
-          <label className="grid gap-2 text-sm text-slate-300">
-            Email
-            <input name="email" type="email" required className="h-11 rounded-md border border-white/10 bg-slate-950 px-3 text-slate-100 outline-none ring-sky-300/30 focus:border-sky-300/50 focus:ring-4" />
-          </label>
-          <label className="grid gap-2 text-sm text-slate-300">
-            Password
-            <input name="password" type="password" required className="h-11 rounded-md border border-white/10 bg-slate-950 px-3 text-slate-100 outline-none ring-sky-300/30 focus:border-sky-300/50 focus:ring-4" />
-          </label>
-          <button type="submit" className="mt-2 h-11 rounded-md bg-sky-300 px-4 text-sm font-semibold text-slate-950 hover:bg-sky-200">
-            Sign in
-          </button>
-        </form>
+        <Suspense fallback={null}>
+          <AdminLoginForm />
+        </Suspense>
       </section>
     </main>
   );

@@ -9,6 +9,8 @@ Stack:
 - Go MCP server with official MCP Go SDK.
 - PostgreSQL.
 - Docker Compose.
+- GitHub Actions CI/CD.
+- Staging/pre-production environment with approval gate.
 - GCP Compute Engine e2-micro.
 - Cloudflare DNS/proxy.
 
@@ -19,4 +21,6 @@ Core constraints:
 - admin panel for publishing,
 - anonymous comments with moderation,
 - MCP must be authorized and tool-scoped,
-- SEO/GEO required for all public content.
+- SEO/GEO required for all public content,
+- unit, integration, and E2E tests are required quality gates,
+- production deployment must wait for developer approval after staging checks pass.
