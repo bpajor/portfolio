@@ -8,34 +8,40 @@ import (
 )
 
 type Config struct {
-	Addr              string
-	DatabaseURL       string
-	AllowedOrigins    []string
-	BodyLimitBytes    int64
-	AdminEmail        string
-	AdminPassword     string
-	CookieSecure      bool
-	ReadHeaderTimeout time.Duration
-	ReadTimeout       time.Duration
-	WriteTimeout      time.Duration
-	IdleTimeout       time.Duration
-	ShutdownTimeout   time.Duration
+	Addr               string
+	DatabaseURL        string
+	AllowedOrigins     []string
+	BodyLimitBytes     int64
+	AdminEmail         string
+	AdminPassword      string
+	CookieSecure       bool
+	PrivacyHashSecret  string
+	TurnstileSecretKey string
+	TurnstileVerifyURL string
+	ReadHeaderTimeout  time.Duration
+	ReadTimeout        time.Duration
+	WriteTimeout       time.Duration
+	IdleTimeout        time.Duration
+	ShutdownTimeout    time.Duration
 }
 
 func Load() Config {
 	return Config{
-		Addr:              env("API_ADDR", ":8080"),
-		DatabaseURL:       env("DATABASE_URL", ""),
-		AllowedOrigins:    csvEnv("API_ALLOWED_ORIGINS", []string{"http://localhost:3000"}),
-		BodyLimitBytes:    int64Env("API_BODY_LIMIT_BYTES", 1<<20),
-		AdminEmail:        env("ADMIN_EMAIL", ""),
-		AdminPassword:     env("ADMIN_PASSWORD", ""),
-		CookieSecure:      boolEnv("API_COOKIE_SECURE", true),
-		ReadHeaderTimeout: 5 * time.Second,
-		ReadTimeout:       15 * time.Second,
-		WriteTimeout:      15 * time.Second,
-		IdleTimeout:       60 * time.Second,
-		ShutdownTimeout:   10 * time.Second,
+		Addr:               env("API_ADDR", ":8080"),
+		DatabaseURL:        env("DATABASE_URL", ""),
+		AllowedOrigins:     csvEnv("API_ALLOWED_ORIGINS", []string{"http://localhost:3000"}),
+		BodyLimitBytes:     int64Env("API_BODY_LIMIT_BYTES", 1<<20),
+		AdminEmail:         env("ADMIN_EMAIL", ""),
+		AdminPassword:      env("ADMIN_PASSWORD", ""),
+		CookieSecure:       boolEnv("API_COOKIE_SECURE", true),
+		PrivacyHashSecret:  env("SESSION_SECRET", "development"),
+		TurnstileSecretKey: env("TURNSTILE_SECRET_KEY", ""),
+		TurnstileVerifyURL: env("TURNSTILE_VERIFY_URL", "https://challenges.cloudflare.com/turnstile/v0/siteverify"),
+		ReadHeaderTimeout:  5 * time.Second,
+		ReadTimeout:        15 * time.Second,
+		WriteTimeout:       15 * time.Second,
+		IdleTimeout:        60 * time.Second,
+		ShutdownTimeout:    10 * time.Second,
 	}
 }
 
