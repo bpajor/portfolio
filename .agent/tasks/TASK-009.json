@@ -16,5 +16,10 @@
     "Caddy routes web, api, and mcp correctly.",
     "PostgreSQL is not exposed publicly.",
     "Backup script creates a dump."
+  ],
+  "notes": [
+    "Added a local development PostgreSQL compose file bound to 127.0.0.1 only.",
+    "Added npm and Makefile commands for starting, stopping, logging, opening psql, and resetting the development database.",
+    "Full production compose stack with Caddy, web, api, mcp, and backups remains in scope for the deployment task."
   ]
 }
