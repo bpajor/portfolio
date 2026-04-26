@@ -1,12 +1,30 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { SiteFrame } from "../../_components/site-frame";
 import { posts } from "../../site-data";
 import { CommentsSection } from "./comments-section";
+import { JsonLd, blogPostJsonLd, breadcrumbJsonLd, pageMetadata } from "../../seo";
 
 export function generateStaticParams() {
   return posts.map((post) => ({ slug: post.slug }));
+}
+
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const { slug } = await params;
+  const post = posts.find((item) => item.slug === slug);
+  if (!post) {
+    return {};
+  }
+  return pageMetadata({
+    title: post.title,
+    description: post.excerpt,
+    path: `/blog/${post.slug}`,
+    type: "article",
+    publishedTime: post.publishedAt,
+    tags: post.tags
+  });
 }
 
 export default async function BlogPostPage({ params }: { params: Promise<{ slug: string }> }) {
@@ -18,6 +36,16 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
 
   return (
     <SiteFrame>
+      <JsonLd
+        data={[
+          blogPostJsonLd(post),
+          breadcrumbJsonLd([
+            { name: "Home", path: "/" },
+            { name: "Writing", path: "/blog" },
+            { name: post.title, path: `/blog/${post.slug}` }
+          ])
+        ]}
+      />
       <article className="mx-auto max-w-3xl px-5 py-12 md:py-16">
         <Link href="/blog" className="inline-flex items-center gap-2 text-sm text-slate-400 hover:text-white">
           <ArrowLeft size={16} aria-hidden="true" />

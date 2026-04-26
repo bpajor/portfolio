@@ -1,7 +1,19 @@
 import Image from "next/image";
+import type { Metadata } from "next";
 import { Cloud, ServerCog, Terminal } from "lucide-react";
 import { PageIntro, SiteFrame } from "../_components/site-frame";
 import { profile } from "../site-data";
+import { JsonLd, breadcrumbJsonLd, pageMetadata, profilePageJsonLd } from "../seo";
+
+const title = "About";
+const description =
+  "Learn about Blazej Pajor's backend engineering, GCP, Kubernetes, reliability, and Agentic AI focus.";
+
+export const metadata: Metadata = pageMetadata({
+  title,
+  description,
+  path: "/about"
+});
 
 const focusAreas = [
   {
@@ -27,6 +39,15 @@ const focusAreas = [
 export default function AboutPage() {
   return (
     <SiteFrame>
+      <JsonLd
+        data={[
+          profilePageJsonLd("/about", "About Blazej Pajor", description),
+          breadcrumbJsonLd([
+            { name: "Home", path: "/" },
+            { name: "About", path: "/about" }
+          ])
+        ]}
+      />
       <PageIntro
         eyebrow="About"
         title="I work where backend reliability meets cloud operations."

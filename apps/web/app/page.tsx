@@ -11,6 +11,7 @@ import {
   Sparkles,
   Terminal
 } from "lucide-react";
+import { JsonLd, personJsonLd, profilePageJsonLd, websiteJsonLd } from "./seo";
 
 const projects = [
   {
@@ -83,6 +84,17 @@ const writingTopics = [
 export default function HomePage() {
   return (
     <main className="min-h-screen overflow-hidden bg-slate-950 text-slate-100">
+      <JsonLd
+        data={[
+          personJsonLd(),
+          websiteJsonLd(),
+          profilePageJsonLd(
+            "/",
+            "Blazej Pajor - Software Engineer",
+            "Portfolio of Blazej Pajor, a Software Engineer focused on backend systems, GCP, Kubernetes, reliability, and AI-driven workflows."
+          )
+        ]}
+      />
       <div className="pointer-events-none fixed inset-0 hero-backdrop opacity-80" />
 
       <header className="relative z-10 border-b border-white/10 bg-slate-950/80 backdrop-blur-xl">

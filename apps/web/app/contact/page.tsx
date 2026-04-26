@@ -1,10 +1,28 @@
+import type { Metadata } from "next";
 import { Github, Linkedin, Mail, MapPin } from "lucide-react";
 import { PageIntro, SiteFrame } from "../_components/site-frame";
 import { profile } from "../site-data";
+import { JsonLd, breadcrumbJsonLd, pageMetadata } from "../seo";
+
+const title = "Contact";
+const description =
+  "Contact Blazej Pajor about backend engineering, GCP infrastructure, reliability, and practical AI systems.";
+
+export const metadata: Metadata = pageMetadata({
+  title,
+  description,
+  path: "/contact"
+});
 
 export default function ContactPage() {
   return (
     <SiteFrame>
+      <JsonLd
+        data={breadcrumbJsonLd([
+          { name: "Home", path: "/" },
+          { name: "Contact", path: "/contact" }
+        ])}
+      />
       <PageIntro
         eyebrow="Contact"
         title="Let's talk about backend, cloud, and AI systems."

@@ -1,11 +1,26 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Github } from "lucide-react";
 import { SiteFrame } from "../../_components/site-frame";
 import { projects } from "../../site-data";
+import { JsonLd, breadcrumbJsonLd, pageMetadata, projectJsonLd } from "../../seo";
 
 export function generateStaticParams() {
   return projects.map((project) => ({ slug: project.slug }));
+}
+
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const { slug } = await params;
+  const project = projects.find((item) => item.slug === slug);
+  if (!project) {
+    return {};
+  }
+  return pageMetadata({
+    title: project.title,
+    description: project.summary,
+    path: `/projects/${project.slug}`
+  });
 }
 
 export default async function ProjectDetailPage({ params }: { params: Promise<{ slug: string }> }) {
@@ -17,6 +32,16 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
 
   return (
     <SiteFrame>
+      <JsonLd
+        data={[
+          projectJsonLd(project),
+          breadcrumbJsonLd([
+            { name: "Home", path: "/" },
+            { name: "Projects", path: "/projects" },
+            { name: project.title, path: `/projects/${project.slug}` }
+          ])
+        ]}
+      />
       <article className="mx-auto max-w-6xl px-5 py-12 md:py-16">
         <Link href="/projects" className="inline-flex items-center gap-2 text-sm text-slate-400 hover:text-white">
           <ArrowLeft size={16} aria-hidden="true" />
