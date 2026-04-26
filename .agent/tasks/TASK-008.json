@@ -1,7 +1,7 @@
 {
   "id": "008",
   "title": "Add SEO and GEO layer",
-  "status": "pending",
+  "status": "completed",
   "goal": "Make public content discoverable, structured, and easy for search engines and AI systems to understand.",
   "scope": [
     "Add metadata to every public page.",
@@ -16,5 +16,11 @@
     "Structured data matches visible content.",
     "Public pages have meaningful titles and descriptions.",
     "RSS validates structurally."
+  ],
+  "notes": [
+    "Added page metadata, canonical URLs, Open Graph, and Twitter card metadata for public pages.",
+    "Added sitemap.xml, robots.txt, RSS, llms.txt, and ai-context.json routes.",
+    "Added JSON-LD for Person, WebSite, ProfilePage, BlogPosting, BreadcrumbList, and project pages.",
+    "Added SEO/GEO documentation and build verification."
   ]
 }

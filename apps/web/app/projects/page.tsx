@@ -1,11 +1,29 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { ArrowUpRight } from "lucide-react";
 import { PageIntro, SiteFrame } from "../_components/site-frame";
 import { projects } from "../site-data";
+import { JsonLd, breadcrumbJsonLd, pageMetadata } from "../seo";
+
+const title = "Projects";
+const description =
+  "Selected backend, API, cloud, and internal tooling projects by Blazej Pajor.";
+
+export const metadata: Metadata = pageMetadata({
+  title,
+  description,
+  path: "/projects"
+});
 
 export default function ProjectsPage() {
   return (
     <SiteFrame>
+      <JsonLd
+        data={breadcrumbJsonLd([
+          { name: "Home", path: "/" },
+          { name: "Projects", path: "/projects" }
+        ])}
+      />
       <PageIntro
         eyebrow="Projects"
         title="Practical systems, APIs, and internal tooling."
