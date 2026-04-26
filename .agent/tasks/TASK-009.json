@@ -1,7 +1,7 @@
 {
   "id": "009",
   "title": "Prepare Docker Compose deployment",
-  "status": "pending",
+  "status": "completed",
   "goal": "Run the full stack locally and on a small VM using Docker Compose.",
   "scope": [
     "Add Dockerfile for web.",
@@ -20,6 +20,10 @@
   "notes": [
     "Added a local development PostgreSQL compose file bound to 127.0.0.1 only.",
     "Added npm and Makefile commands for starting, stopping, logging, opening psql, and resetting the development database.",
-    "Full production compose stack with Caddy, web, api, mcp, and backups remains in scope for the deployment task."
+    "Added production Dockerfiles for web, api, and mcp.",
+    "Added a production Docker Compose stack with Caddy, private service networking, Postgres, one-shot migration, and restricted public exposure.",
+    "Added Caddy routing and security headers for web, api, and mcp.",
+    "Added a PostgreSQL backup script with configurable output directory and retention.",
+    "Verified docker compose config, image builds, Caddy routing, private Postgres, protected MCP endpoint, and backup dump creation with a local smoke test."
   ]
 }
