@@ -40,7 +40,7 @@
       "id": "006",
       "title": "Implement anonymous comments with moderation",
       "priority": 6,
-      "status": "pending",
+      "status": "completed",
       "file": ".agent/tasks/TASK-006.json"
     },
     {

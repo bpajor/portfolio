@@ -8,6 +8,10 @@
   ],
   "scripts": {
     "dev:web": "npm --workspace apps/web run dev",
+    "dev:db:up": "docker compose -f compose.dev.yml up -d postgres",
+    "dev:db:down": "docker compose -f compose.dev.yml down",
+    "dev:db:reset": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/dev-db-reset.ps1",
+    "dev:db:logs": "docker compose -f compose.dev.yml logs -f postgres",
     "build:web": "npm --workspace apps/web run build",
     "lint:web": "npm --workspace apps/web run lint",
     "typecheck:web": "npm --workspace apps/web run typecheck"
