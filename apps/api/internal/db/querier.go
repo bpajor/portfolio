@@ -11,6 +11,7 @@ import (
 )
 
 type Querier interface {
+	AddPostTags(ctx context.Context, arg AddPostTagsParams) error
 	AdminGetPost(ctx context.Context, id uuid.UUID) (Post, error)
 	AdminListAuditLog(ctx context.Context, arg AdminListAuditLogParams) ([]AuditLog, error)
 	AdminListComments(ctx context.Context, status NullCommentStatus) ([]AdminListCommentsRow, error)
@@ -27,6 +28,7 @@ type Querier interface {
 	CreateProject(ctx context.Context, arg CreateProjectParams) (Project, error)
 	CreateSession(ctx context.Context, arg CreateSessionParams) (Session, error)
 	DeletePost(ctx context.Context, id uuid.UUID) error
+	DeletePostTags(ctx context.Context, postID uuid.UUID) error
 	GetMedia(ctx context.Context, id uuid.UUID) (Medium, error)
 	GetProfile(ctx context.Context) (Profile, error)
 	GetProjectBySlug(ctx context.Context, slug string) (Project, error)
@@ -37,7 +39,6 @@ type Querier interface {
 	ListFeaturedProjects(ctx context.Context) ([]Project, error)
 	ListPublishedPosts(ctx context.Context) ([]ListPublishedPostsRow, error)
 	ModerateComment(ctx context.Context, arg ModerateCommentParams) (Comment, error)
-	ReplacePostTags(ctx context.Context, arg ReplacePostTagsParams) error
 	RevokeSession(ctx context.Context, tokenHash string) error
 	UpdateContactMessageStatus(ctx context.Context, arg UpdateContactMessageStatusParams) (UpdateContactMessageStatusRow, error)
 	UpdatePost(ctx context.Context, arg UpdatePostParams) (Post, error)

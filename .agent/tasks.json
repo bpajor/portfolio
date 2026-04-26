@@ -33,7 +33,7 @@
       "id": "005",
       "title": "Build admin panel and publishing flow",
       "priority": 5,
-      "status": "in_progress",
+      "status": "completed",
       "file": ".agent/tasks/TASK-005.json"
     },
     {
@@ -70,6 +70,20 @@
       "priority": 10,
       "status": "pending",
       "file": ".agent/tasks/TASK-010.json"
+    },
+    {
+      "id": "011",
+      "title": "Implement automated test suites",
+      "priority": 11,
+      "status": "pending",
+      "file": ".agent/tasks/TASK-011.json"
+    },
+    {
+      "id": "012",
+      "title": "Implement GitHub CI/CD with staging approval gate",
+      "priority": 12,
+      "status": "pending",
+      "file": ".agent/tasks/TASK-012.json"
     }
   ]
 }

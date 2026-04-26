@@ -111,10 +111,11 @@ RETURNING *;
 DELETE FROM posts
 WHERE id = $1;
 
--- name: ReplacePostTags :exec
-WITH deleted AS (
-    DELETE FROM post_tags
-    WHERE post_id = $1
-)
+-- name: DeletePostTags :exec
+DELETE FROM post_tags
+WHERE post_id = $1;
+
+-- name: AddPostTags :exec
 INSERT INTO post_tags (post_id, tag)
-SELECT $1, unnest(sqlc.arg(tags)::text[]);
+SELECT $1, unnest(sqlc.arg(tags)::text[])
+ON CONFLICT DO NOTHING;

@@ -12,6 +12,22 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const addPostTags = `-- name: AddPostTags :exec
+INSERT INTO post_tags (post_id, tag)
+SELECT $1, unnest($2::text[])
+ON CONFLICT DO NOTHING
+`
+
+type AddPostTagsParams struct {
+	PostID uuid.UUID `json:"post_id"`
+	Tags   []string  `json:"tags"`
+}
+
+func (q *Queries) AddPostTags(ctx context.Context, arg AddPostTagsParams) error {
+	_, err := q.db.Exec(ctx, addPostTags, arg.PostID, arg.Tags)
+	return err
+}
+
 const adminGetPost = `-- name: AdminGetPost :one
 SELECT
     id,
@@ -191,6 +207,16 @@ func (q *Queries) DeletePost(ctx context.Context, id uuid.UUID) error {
 	return err
 }
 
+const deletePostTags = `-- name: DeletePostTags :exec
+DELETE FROM post_tags
+WHERE post_id = $1
+`
+
+func (q *Queries) DeletePostTags(ctx context.Context, postID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deletePostTags, postID)
+	return err
+}
+
 const getPublishedPostBySlug = `-- name: GetPublishedPostBySlug :one
 SELECT
     p.id,
@@ -314,25 +340,6 @@ func (q *Queries) ListPublishedPosts(ctx context.Context) ([]ListPublishedPostsR
 		return nil, err
 	}
 	return items, nil
-}
-
-const replacePostTags = `-- name: ReplacePostTags :exec
-WITH deleted AS (
-    DELETE FROM post_tags
-    WHERE post_id = $1
-)
-INSERT INTO post_tags (post_id, tag)
-SELECT $1, unnest($2::text[])
-`
-
-type ReplacePostTagsParams struct {
-	PostID uuid.UUID `json:"post_id"`
-	Tags   []string  `json:"tags"`
-}
-
-func (q *Queries) ReplacePostTags(ctx context.Context, arg ReplacePostTagsParams) error {
-	_, err := q.db.Exec(ctx, replacePostTags, arg.PostID, arg.Tags)
-	return err
 }
 
 const updatePost = `-- name: UpdatePost :one

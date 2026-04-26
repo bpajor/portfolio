@@ -17,6 +17,8 @@ Blazej Pajor is a Software Engineer working at the intersection of backend devel
 - Provide a secure MCP interface for AI agents.
 - Optimize content for SEO and GEO.
 - Keep monthly hosting costs under 50 PLN.
+- Maintain automated unit, integration, and end-to-end test coverage.
+- Deploy through a CI/CD process with a pre-production environment and manual approval before production.
 
 ## Non-Goals for V1
 
@@ -69,6 +71,22 @@ Blazej Pajor is a Software Engineer working at the intersection of backend devel
 - Provide clear textual content in HTML.
 - Optionally expose `llms.txt` and `ai-context.json`.
 
+### Testing and Quality Gates
+
+- Unit tests cover Go domain/auth/API helpers and frontend utility behavior.
+- Integration tests cover PostgreSQL migrations, sqlc queries, API handlers, auth/session behavior, comments, publishing, and MCP tool contracts.
+- End-to-end tests cover critical browser workflows: public navigation, admin login, draft creation, publishing, comments moderation, and contact flow.
+- Test fixtures must avoid real secrets and must run against disposable databases or isolated test data.
+- Tests must be reliable enough to block merges and deployments.
+
+### CI/CD
+
+- GitHub Actions runs lint, typecheck, unit tests, integration tests, build checks, and E2E tests.
+- Pull requests require successful checks before merge.
+- Deployment must happen in stages: build artifact, deploy to pre-production/staging, run smoke/E2E checks, then wait for manual developer approval before production deployment.
+- Production deployment must use environment-scoped secrets and GitHub protected environments.
+- Rollback steps must be documented before production launch.
+
 ## Security Requirements
 
 - HTTPS only.
@@ -82,6 +100,8 @@ Blazej Pajor is a Software Engineer working at the intersection of backend devel
 - Daily backups.
 - GCP budget alerts.
 - No MCP shell/file execution tools.
+- CI/CD secrets are stored only in GitHub protected environments or GCP Secret Manager.
+- Production deployment requires manual approval after staging checks pass.
 
 ## Success Criteria
 
@@ -92,3 +112,5 @@ Blazej Pajor is a Software Engineer working at the intersection of backend devel
 - AI agent can query site context through authorized MCP tools.
 - Public pages pass basic SEO checks and render structured data.
 - Backup and restore process is documented and tested.
+- Unit, integration, and E2E test suites run in CI.
+- Staging deployment and smoke/E2E checks pass before production approval.

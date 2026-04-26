@@ -12,6 +12,9 @@ type Config struct {
 	DatabaseURL       string
 	AllowedOrigins    []string
 	BodyLimitBytes    int64
+	AdminEmail        string
+	AdminPassword     string
+	CookieSecure      bool
 	ReadHeaderTimeout time.Duration
 	ReadTimeout       time.Duration
 	WriteTimeout      time.Duration
@@ -25,6 +28,9 @@ func Load() Config {
 		DatabaseURL:       env("DATABASE_URL", ""),
 		AllowedOrigins:    csvEnv("API_ALLOWED_ORIGINS", []string{"http://localhost:3000"}),
 		BodyLimitBytes:    int64Env("API_BODY_LIMIT_BYTES", 1<<20),
+		AdminEmail:        env("ADMIN_EMAIL", ""),
+		AdminPassword:     env("ADMIN_PASSWORD", ""),
+		CookieSecure:      boolEnv("API_COOKIE_SECURE", true),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,
 		WriteTimeout:      15 * time.Second,
@@ -72,4 +78,19 @@ func int64Env(key string, fallback int64) int64 {
 		return fallback
 	}
 	return parsed
+}
+
+func boolEnv(key string, fallback bool) bool {
+	value := strings.ToLower(strings.TrimSpace(os.Getenv(key)))
+	if value == "" {
+		return fallback
+	}
+	switch value {
+	case "1", "true", "yes", "y", "on":
+		return true
+	case "0", "false", "no", "n", "off":
+		return false
+	default:
+		return fallback
+	}
 }
