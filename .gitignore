@@ -14,9 +14,13 @@ artifacts/
 *.log
 *.tmp
 *.tsbuildinfo
+test-results/
+playwright-report/
 
 apps/web/.next/
 apps/web/node_modules/
+apps/web/test-results/
+apps/web/playwright-report/
 
 bin/
 vendor/

@@ -1,7 +1,7 @@
 {
   "id": "011",
   "title": "Implement automated test suites",
-  "status": "pending",
+  "status": "completed",
   "goal": "Add reliable unit, integration, and end-to-end tests across the web app, Go API, Go MCP server, PostgreSQL migrations, and critical publishing workflows.",
   "scope": [
     "Add Go unit tests for auth, config, request validation, response mapping, and MCP tool helpers.",
@@ -17,5 +17,14 @@
     "Migration validation passes.",
     "Frontend unit/component tests pass.",
     "Playwright E2E tests pass locally and in CI."
+  ],
+  "notes": [
+    "Added API unit tests for auth, config parsing, public/admin route behavior, JSON decoding, and helper functions.",
+    "Added optional API PostgreSQL integration test gated by API_INTEGRATION_DATABASE_URL.",
+    "Kept MCP tests and documented optional MCP PostgreSQL integration via MCP_INTEGRATION_DATABASE_URL.",
+    "Added Vitest unit tests for SEO/GEO helpers, JSON-LD escaping, sitemap route generation, and structured data.",
+    "Added Playwright E2E smoke tests for public navigation, GEO/crawler assets, and admin login gating.",
+    "Added migration validation script that applies Up and Down against disposable Docker PostgreSQL.",
+    "Verified lint, typecheck, web unit tests, Go API/MCP tests, migration validation, and Playwright E2E locally."
   ]
 }

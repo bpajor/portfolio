@@ -14,7 +14,13 @@
     "dev:db:logs": "docker compose -f compose.dev.yml logs -f postgres",
     "build:web": "npm --workspace apps/web run build",
     "lint:web": "npm --workspace apps/web run lint",
-    "typecheck:web": "npm --workspace apps/web run typecheck"
+    "typecheck:web": "npm --workspace apps/web run typecheck",
+    "test:web": "npm --workspace apps/web run test",
+    "test:e2e": "npm --workspace apps/web run test:e2e",
+    "test:api": "cd apps/api && go test ./...",
+    "test:mcp": "cd apps/mcp && go test ./...",
+    "test:migrations": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/test-migrations.ps1",
+    "test": "npm run test:web"
   },
   "overrides": {
     "postcss": "8.5.10"
