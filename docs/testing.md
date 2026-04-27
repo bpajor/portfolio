@@ -25,6 +25,11 @@ npm run test:e2e
 ```
 
 The suite starts the Next.js dev server and checks public routes, crawler assets, and admin login gating.
+To run the same suite against a deployed environment, set `E2E_BASE_URL`:
+
+```bash
+E2E_BASE_URL=https://staging.bpajor.dev npm run test:e2e
+```
 
 ## Go API Tests
 

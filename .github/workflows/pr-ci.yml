@@ -1,0 +1,131 @@
+name: Pull Request CI
+
+on:
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+  workflow_call:
+
+concurrency:
+  group: pr-ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  web:
+    name: Web lint, test, build, E2E
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck:web
+
+      - name: Lint
+        run: npm run lint:web
+
+      - name: Unit tests
+        run: npm run test:web
+
+      - name: Build
+        run: npm run build:web
+
+      - name: Install Playwright Chromium
+        run: npx --workspace apps/web playwright install --with-deps chromium
+
+      - name: E2E smoke tests
+        run: npm run test:e2e
+
+  go:
+    name: Go tests and sqlc check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.x"
+          cache-dependency-path: |
+            apps/api/go.sum
+            apps/mcp/go.sum
+
+      - name: API tests
+        working-directory: apps/api
+        run: go test ./...
+
+      - name: MCP tests
+        working-directory: apps/mcp
+        run: go test ./...
+
+      - name: Install sqlc
+        run: go install github.com/sqlc-dev/sqlc/cmd/sqlc@v1.30.0
+
+      - name: Verify generated sqlc code
+        run: |
+          sqlc generate
+          git diff --exit-code -- apps/api/internal/db
+
+  database:
+    name: Migrations and DB integration
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.x"
+          cache-dependency-path: |
+            apps/api/go.sum
+            apps/mcp/go.sum
+
+      - name: Validate migration Up/Down
+        run: bash scripts/test-migrations.sh
+
+      - name: Start integration database
+        run: |
+          docker compose -f compose.dev.yml up -d postgres
+          for i in {1..60}; do
+            if docker compose -f compose.dev.yml exec -T postgres pg_isready -U portfolio -d portfolio; then
+              exit 0
+            fi
+            sleep 1
+          done
+          exit 1
+
+      - name: Apply schema
+        run: |
+          sed '/-- +goose Down/,$d' db/migrations/00001_initial_schema.sql |
+            docker compose -f compose.dev.yml exec -T postgres psql -v ON_ERROR_STOP=1 -U portfolio -d portfolio
+
+      - name: API integration tests
+        working-directory: apps/api
+        env:
+          API_INTEGRATION_DATABASE_URL: postgres://portfolio:portfolio@127.0.0.1:55432/portfolio?sslmode=disable
+        run: go test ./internal/httpserver -run Integration -count=1
+
+      - name: MCP integration tests
+        working-directory: apps/mcp
+        env:
+          MCP_INTEGRATION_DATABASE_URL: postgres://portfolio:portfolio@127.0.0.1:55432/portfolio?sslmode=disable
+        run: go test ./internal/server -run Integration -count=1
+
+      - name: Stop integration database
+        if: always()
+        run: docker compose -f compose.dev.yml down -v
