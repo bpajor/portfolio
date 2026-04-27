@@ -1,7 +1,7 @@
 {
   "id": "010",
   "title": "Prepare GCP and DNS deployment guide",
-  "status": "pending",
+  "status": "completed",
   "goal": "Document and optionally automate the low-cost GCP deployment and Cloudflare DNS setup.",
   "scope": [
     "Document VM creation.",
@@ -16,5 +16,11 @@
     "Deployment guide can be followed from a clean GCP project.",
     "Cost-sensitive resources are explicitly called out.",
     "Security checklist is included before launch."
+  ],
+  "notes": [
+    "Added Terraform configuration under infra/gcp for VPC, subnet, static IP, e2-micro VM, firewall rules, OS Login, VM service account, backup bucket lifecycle, and optional billing budget.",
+    "Added Terraform tfvars example with Free Tier-friendly defaults.",
+    "Added GCP and DNS deployment guide covering Terraform apply, Docker installation, Compose deployment, Cloudflare DNS, Caddy HTTPS, backups, updates, and launch security checklist.",
+    "Verified Terraform formatting and validation with hashicorp/terraform:1.8.5."
   ]
 }

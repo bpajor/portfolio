@@ -1,0 +1,205 @@
+data "google_project" "current" {
+  project_id = var.project_id
+}
+
+locals {
+  network_name         = "${var.name_prefix}-vpc"
+  subnet_name          = "${var.name_prefix}-subnet"
+  vm_name              = "${var.name_prefix}-vm"
+  address_name         = "${var.name_prefix}-ip"
+  service_account_name = "${var.name_prefix}-vm"
+  web_tag              = "${var.name_prefix}-web"
+}
+
+resource "google_project_service" "required" {
+  for_each = toset([
+    "compute.googleapis.com",
+    "storage.googleapis.com",
+    "cloudbilling.googleapis.com",
+    "billingbudgets.googleapis.com",
+  ])
+
+  service            = each.key
+  disable_on_destroy = false
+}
+
+resource "google_compute_project_metadata_item" "os_login" {
+  key   = "enable-oslogin"
+  value = "TRUE"
+
+  depends_on = [google_project_service.required]
+}
+
+resource "google_compute_network" "main" {
+  name                    = local.network_name
+  auto_create_subnetworks = false
+
+  depends_on = [google_project_service.required]
+}
+
+resource "google_compute_subnetwork" "main" {
+  name          = local.subnet_name
+  ip_cidr_range = "10.10.0.0/24"
+  network       = google_compute_network.main.id
+  region        = var.region
+}
+
+resource "google_compute_address" "web" {
+  name         = local.address_name
+  region       = var.region
+  address_type = "EXTERNAL"
+  network_tier = "STANDARD"
+}
+
+resource "google_compute_firewall" "allow_web" {
+  name        = "${var.name_prefix}-allow-web"
+  network     = google_compute_network.main.name
+  description = "Allow public HTTP and HTTPS traffic to Caddy."
+  direction   = "INGRESS"
+
+  allow {
+    protocol = "tcp"
+    ports    = ["80", "443"]
+  }
+
+  source_ranges = ["0.0.0.0/0"]
+  target_tags   = [local.web_tag]
+}
+
+resource "google_compute_firewall" "allow_ssh_admin" {
+  count = length(var.ssh_source_ranges) > 0 ? 1 : 0
+
+  name        = "${var.name_prefix}-allow-ssh-admin"
+  network     = google_compute_network.main.name
+  description = "Allow direct SSH only from explicit admin CIDR ranges."
+  direction   = "INGRESS"
+
+  allow {
+    protocol = "tcp"
+    ports    = ["22"]
+  }
+
+  source_ranges = var.ssh_source_ranges
+  target_tags   = [local.web_tag]
+}
+
+resource "google_service_account" "vm" {
+  account_id   = local.service_account_name
+  display_name = "Portfolio VM service account"
+  description  = "Least-purpose service account for the single-VM portfolio deployment."
+
+  depends_on = [google_project_service.required]
+}
+
+resource "google_storage_bucket" "backups" {
+  name                        = var.backup_bucket_name
+  location                    = var.region
+  uniform_bucket_level_access = true
+  public_access_prevention    = "enforced"
+  force_destroy               = false
+  labels                      = var.labels
+
+  lifecycle_rule {
+    action {
+      type = "Delete"
+    }
+
+    condition {
+      age = var.backup_retention_days
+    }
+  }
+
+  depends_on = [google_project_service.required]
+}
+
+resource "google_storage_bucket_iam_member" "vm_backup_writer" {
+  bucket = google_storage_bucket.backups.name
+  role   = "roles/storage.objectAdmin"
+  member = "serviceAccount:${google_service_account.vm.email}"
+}
+
+resource "google_compute_instance" "web" {
+  name         = local.vm_name
+  machine_type = var.machine_type
+  zone         = var.zone
+  tags         = [local.web_tag]
+  labels       = var.labels
+
+  allow_stopping_for_update = true
+
+  boot_disk {
+    initialize_params {
+      image = "debian-cloud/debian-12"
+      size  = var.boot_disk_size_gb
+      type  = var.boot_disk_type
+    }
+  }
+
+  network_interface {
+    subnetwork = google_compute_subnetwork.main.id
+
+    access_config {
+      nat_ip       = google_compute_address.web.address
+      network_tier = "STANDARD"
+    }
+  }
+
+  metadata = {
+    enable-oslogin = "TRUE"
+  }
+
+  service_account {
+    email  = google_service_account.vm.email
+    scopes = ["https://www.googleapis.com/auth/cloud-platform"]
+  }
+
+  shielded_instance_config {
+    enable_secure_boot          = true
+    enable_vtpm                 = true
+    enable_integrity_monitoring = true
+  }
+
+  depends_on = [
+    google_compute_firewall.allow_web,
+    google_compute_project_metadata_item.os_login,
+    google_storage_bucket_iam_member.vm_backup_writer,
+  ]
+}
+
+resource "google_billing_budget" "monthly" {
+  count = var.enable_billing_budget ? 1 : 0
+
+  billing_account = var.billing_account_id
+  display_name    = "${var.name_prefix}-monthly-budget"
+
+  budget_filter {
+    projects = ["projects/${data.google_project.current.number}"]
+  }
+
+  amount {
+    specified_amount {
+      currency_code = var.budget_currency_code
+      units         = var.budget_amount_units
+    }
+  }
+
+  threshold_rules {
+    threshold_percent = 0.5
+    spend_basis       = "CURRENT_SPEND"
+  }
+
+  threshold_rules {
+    threshold_percent = 0.8
+    spend_basis       = "CURRENT_SPEND"
+  }
+
+  threshold_rules {
+    threshold_percent = 1.0
+    spend_basis       = "CURRENT_SPEND"
+  }
+
+  threshold_rules {
+    threshold_percent = 1.2
+    spend_basis       = "FORECASTED_SPEND"
+  }
+}

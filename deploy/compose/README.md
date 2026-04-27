@@ -13,6 +13,7 @@ Services:
 
 Local development PostgreSQL is available at the repository root in `compose.dev.yml`.
 See `docs/local-development.md` for the current development workflow.
+For GCP provisioning, DNS, and production launch steps, see `docs/gcp-dns-deployment.md`.
 
 ## First Run
 
