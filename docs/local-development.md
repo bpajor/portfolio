@@ -53,3 +53,12 @@ docker version
 docker image inspect postgres:13
 docker compose -f compose.dev.yml up -d postgres
 ```
+
+If Docker returns `Internal Server Error` for `docker compose` on Windows, make sure the active context is Docker Desktop's Linux engine:
+
+```powershell
+docker context ls
+docker context use desktop-linux
+```
+
+If that still fails, stop Docker Desktop processes, run `wsl --shutdown`, start Docker Desktop again, and wait until `docker compose -f compose.dev.yml ps` responds normally.

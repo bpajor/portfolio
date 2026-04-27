@@ -1,4 +1,4 @@
-.PHONY: dev-web build-web lint-web typecheck-web api mcp db-up db-down db-reset db-logs db-psql
+.PHONY: dev-web build-web lint-web typecheck-web test-web test-e2e test-api test-mcp test-migrations api mcp db-up db-down db-reset db-logs db-psql
 
 dev-web:
 	npm --workspace apps/web run dev
@@ -11,6 +11,21 @@ lint-web:
 
 typecheck-web:
 	npm --workspace apps/web run typecheck
+
+test-web:
+	npm --workspace apps/web run test
+
+test-e2e:
+	npm --workspace apps/web run test:e2e
+
+test-api:
+	cd apps/api && go test ./...
+
+test-mcp:
+	cd apps/mcp && go test ./...
+
+test-migrations:
+	powershell -NoProfile -ExecutionPolicy Bypass -File scripts/test-migrations.ps1
 
 api:
 	cd apps/api && go run ./cmd/api
