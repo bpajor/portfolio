@@ -23,3 +23,9 @@ vendor/
 
 db/data/
 deploy/compose/postgres-data/
+
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example

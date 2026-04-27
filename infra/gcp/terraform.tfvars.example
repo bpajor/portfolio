@@ -1,0 +1,16 @@
+project_id         = "your-gcp-project-id"
+region             = "us-central1"
+zone               = "us-central1-a"
+name_prefix        = "portfolio"
+domain             = "bpajor.dev"
+backup_bucket_name = "bpajor-portfolio-backups-unique-suffix"
+
+# Keep empty if you use IAP or temporary browser SSH.
+# For direct SSH, set your current public IP, for example ["203.0.113.10/32"].
+ssh_source_ranges = []
+
+# Optional. Enable after you know your billing account ID.
+enable_billing_budget = false
+billing_account_id    = ""
+budget_currency_code  = "PLN"
+budget_amount_units   = "50"
