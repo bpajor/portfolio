@@ -69,6 +69,8 @@ HTTPS_PORT=443
 
 With this model, staging is deployed on the same VM but is not publicly exposed. GitHub Actions opens an SSH tunnel to `127.0.0.1:18080` and runs smoke/E2E checks through that tunnel.
 
+Both staging and production deploy jobs run `deploy/compose/validate-env.sh` before rebuilding the stack. The deploy stops early if required values are missing, placeholders remain, public Next.js URLs are inconsistent, MCP tokens match, or staging ports are not bound to localhost.
+
 ## Main Deployment Flow
 
 `.github/workflows/deploy.yml` runs on pushes to `main` and manually through `workflow_dispatch`.

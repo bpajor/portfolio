@@ -33,9 +33,20 @@ API_ALLOWED_ORIGINS=https://bpajor.dev
 MCP_ALLOWED_ORIGINS=https://bpajor.dev
 ```
 
+You can generate a first-pass environment file with strong random secrets:
+
+```bash
+DOMAIN=bpajor.dev \
+ADMIN_EMAIL=blazej122@vp.pl \
+TURNSTILE_SECRET_KEY=replace-with-turnstile-secret \
+BACKUP_BUCKET=gs://your-backup-bucket \
+./generate-env.sh production > .env
+```
+
 Start the stack:
 
 ```bash
+./validate-env.sh production .env
 docker compose -f compose.yml up -d --build
 ```
 

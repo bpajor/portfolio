@@ -184,6 +184,18 @@ Default directories:
 
 Edit both `.env` files before the first deploy.
 
+Generate initial environment files with strong random secrets:
+
+```bash
+cd /opt/portfolio-staging/deploy/compose
+sudo -u portfolio DOMAIN=bpajor.dev ADMIN_EMAIL=blazej122@vp.pl TURNSTILE_SECRET_KEY=YOUR_TURNSTILE_SECRET BACKUP_BUCKET=gs://YOUR_BACKUP_BUCKET ./generate-env.sh staging > .env
+./validate-env.sh staging .env
+
+cd /opt/portfolio-production/deploy/compose
+sudo -u portfolio DOMAIN=bpajor.dev ADMIN_EMAIL=blazej122@vp.pl TURNSTILE_SECRET_KEY=YOUR_TURNSTILE_SECRET BACKUP_BUCKET=gs://YOUR_BACKUP_BUCKET ./generate-env.sh production > .env
+./validate-env.sh production .env
+```
+
 ## 8. Deploy Application
 
 If you used the bootstrap script, the repository already exists in `/opt/portfolio-staging` and `/opt/portfolio-production`.
@@ -225,6 +237,7 @@ Replace:
 Start the stack:
 
 ```bash
+./validate-env.sh production .env
 docker compose --env-file .env -f compose.yml up -d --build
 docker compose --env-file .env -f compose.yml ps
 ```
