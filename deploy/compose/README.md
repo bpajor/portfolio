@@ -74,6 +74,18 @@ Create a custom-format PostgreSQL dump:
 
 Backups are written to `BACKUP_DIR` and old dumps are removed after `BACKUP_RETENTION_DAYS`.
 
+Upload the newest generated dump to the configured Cloud Storage bucket:
+
+```bash
+BACKUP_BUCKET=gs://your-backup-bucket ./backup-to-gcs.sh
+```
+
+For a scheduled production backup on a VM, run:
+
+```bash
+sudo APP_DIR=/opt/portfolio-production DEPLOY_USER=portfolio /opt/portfolio-production/deploy/vm/install-backup-cron.sh
+```
+
 ## Security Notes
 
 - PostgreSQL is attached only to the internal Compose network and has no host port.
