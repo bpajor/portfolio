@@ -1,0 +1,23 @@
+{
+  "id": "014",
+  "title": "Add VM bootstrap and backup operations scripts",
+  "status": "completed",
+  "goal": "Make the first GCP VM setup and backup operations repeatable instead of relying on manual command copying.",
+  "scope": [
+    "Add a Debian VM bootstrap script for Docker, deploy user, and staging/production working copies.",
+    "Add a Cloud Storage backup upload helper.",
+    "Add a cron installation helper for scheduled production backups.",
+    "Update deployment documentation to use the operational scripts."
+  ],
+  "verification": [
+    "Shell scripts pass syntax validation.",
+    "Documentation points to the new bootstrap and backup scripts.",
+    "No application runtime behavior changes are required."
+  ],
+  "completed_notes": [
+    "Added deploy/vm/bootstrap-debian.sh for day-0 VM setup.",
+    "Added deploy/compose/backup-to-gcs.sh for off-VM backup uploads.",
+    "Added deploy/vm/install-backup-cron.sh for scheduled backup installation.",
+    "Updated GCP and Compose deployment docs."
+  ]
+}

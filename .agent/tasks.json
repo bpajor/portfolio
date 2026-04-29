@@ -91,6 +91,13 @@
       "priority": 13,
       "status": "completed",
       "file": ".agent/tasks/TASK-013.json"
+    },
+    {
+      "id": "014",
+      "title": "Add VM bootstrap and backup operations scripts",
+      "priority": 14,
+      "status": "completed",
+      "file": ".agent/tasks/TASK-014.json"
     }
   ]
 }

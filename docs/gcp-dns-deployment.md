@@ -154,7 +154,7 @@ Important cost note: a static external IP can cost money when reserved but not a
 
 `e2-micro` has limited CPU and 1 GB memory. That is acceptable for a low-traffic portfolio if the Compose stack is kept small. If builds are too heavy on the VM, build locally or in CI and deploy artifacts/images later.
 
-## 7. Install Docker
+## 7. Bootstrap the VM
 
 SSH into the VM:
 
@@ -163,33 +163,32 @@ cd infra/gcp
 $(terraform output -raw ssh_command)
 ```
 
-Install Docker using the official Docker packages for Debian:
+The repository contains a bootstrap script for Debian 12 VMs. It installs base packages, Docker Engine, Docker Compose, creates a deploy user, clones separate staging and production working copies, and creates initial `.env` files:
 
 ```bash
-sudo apt-get update
-sudo apt-get install -y ca-certificates curl gnupg git
-sudo install -m 0755 -d /etc/apt/keyrings
-curl -fsSL https://download.docker.com/linux/debian/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-sudo chmod a+r /etc/apt/keyrings/docker.gpg
-echo \
-  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian \
-  $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
-  sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-sudo apt-get update
-sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-sudo usermod -aG docker "$USER"
+curl -fsSL https://raw.githubusercontent.com/bpajor/portfolio/main/deploy/vm/bootstrap-debian.sh -o bootstrap-debian.sh
+sudo bash bootstrap-debian.sh
 ```
 
-Log out and back in, then verify:
+Log out and back in if your user needs fresh Docker group membership, then verify:
 
 ```bash
 docker version
 docker compose version
 ```
 
+Default directories:
+
+- staging: `/opt/portfolio-staging`
+- production: `/opt/portfolio-production`
+
+Edit both `.env` files before the first deploy.
+
 ## 8. Deploy Application
 
-Clone the repository:
+If you used the bootstrap script, the repository already exists in `/opt/portfolio-staging` and `/opt/portfolio-production`.
+
+For manual setup, clone the repository:
 
 ```bash
 git clone https://github.com/bpajor/portfolio.git
@@ -288,11 +287,10 @@ cd ~/portfolio/deploy/compose
 ./backup-postgres.sh
 ```
 
-Upload the newest dump:
+Upload the newest dump to Cloud Storage:
 
 ```bash
-LATEST_BACKUP="$(ls -t backups/portfolio-postgres-*.dump | head -n 1)"
-gcloud storage cp "$LATEST_BACKUP" "gs://YOUR_BACKUP_BUCKET/"
+BACKUP_BUCKET=gs://YOUR_BACKUP_BUCKET ./backup-to-gcs.sh
 ```
 
 Add this to cron after the first manual restore test:
@@ -304,7 +302,14 @@ crontab -e
 Example nightly job:
 
 ```cron
-15 3 * * * cd /home/YOUR_USER/portfolio/deploy/compose && ./backup-postgres.sh && gcloud storage cp "$(ls -t backups/portfolio-postgres-*.dump | head -n 1)" gs://bpajor-portfolio-backups/
+15 3 * * * cd /opt/portfolio-production/deploy/compose && ./backup-to-gcs.sh
+```
+
+Or install the cron file with the helper:
+
+```bash
+cd /opt/portfolio-production
+sudo APP_DIR=/opt/portfolio-production DEPLOY_USER=portfolio ./deploy/vm/install-backup-cron.sh
 ```
 
 ## 12. Update Deployment

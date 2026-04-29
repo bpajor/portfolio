@@ -47,7 +47,7 @@ terraform plan
 terraform apply
 ```
 
-After apply, use the `static_ip` output to create Cloudflare DNS records.
+After apply, use the `static_ip` output to create Cloudflare DNS records. Then bootstrap the VM with `deploy/vm/bootstrap-debian.sh`; the full flow is documented in `docs/gcp-dns-deployment.md`.
 
 ## SSH
 
