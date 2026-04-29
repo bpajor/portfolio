@@ -141,6 +141,7 @@ docker compose --env-file .env -f compose.yml ps
 ```
 
 If database state is corrupted, restore from the latest dump created by `deploy/compose/backup-postgres.sh`.
+Use `deploy/compose/restore-postgres.sh` for this operation. It requires `CONFIRM_RESTORE=I_UNDERSTAND_THIS_OVERWRITES_DATABASE` and creates a pre-restore backup by default.
 
 ## Approval Checklist
 

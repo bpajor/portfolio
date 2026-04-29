@@ -1,0 +1,22 @@
+{
+  "id": "017",
+  "title": "Add restore and launch smoke runbook",
+  "status": "completed",
+  "goal": "Make launch, rollback, and backup restore verification repeatable with safe operational scripts.",
+  "scope": [
+    "Add a production-safe PostgreSQL restore helper with explicit destructive confirmation.",
+    "Add a reusable smoke-check script for deployed environments.",
+    "Document restore drills against staging before relying on backups.",
+    "Document smoke checks in launch and rollback flows."
+  ],
+  "verification": [
+    "Shell scripts pass syntax validation.",
+    "Restore script refuses to run without explicit confirmation.",
+    "Smoke script validates API health, MCP auth rejection, and crawler/GEO assets."
+  ],
+  "completed_notes": [
+    "Added deploy/compose/restore-postgres.sh with pre-restore backup and explicit confirmation guard.",
+    "Added deploy/compose/smoke-check.sh for deployed environment checks.",
+    "Updated Compose, CI/CD, and GCP deployment docs with restore and smoke-check usage."
+  ]
+}

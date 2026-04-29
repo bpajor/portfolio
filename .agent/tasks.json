@@ -112,6 +112,13 @@
       "priority": 16,
       "status": "completed",
       "file": ".agent/tasks/TASK-016.json"
+    },
+    {
+      "id": "017",
+      "title": "Add restore and launch smoke runbook",
+      "priority": 17,
+      "status": "completed",
+      "file": ".agent/tasks/TASK-017.json"
     }
   ]
 }

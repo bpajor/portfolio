@@ -246,6 +246,7 @@ Check the API:
 
 ```bash
 curl -fsS https://bpajor.dev/api/healthz
+BASE_URL=https://bpajor.dev ./smoke-check.sh
 ```
 
 Check that MCP is protected:
@@ -323,6 +324,16 @@ Or install the cron file with the helper:
 ```bash
 cd /opt/portfolio-production
 sudo APP_DIR=/opt/portfolio-production DEPLOY_USER=portfolio ./deploy/vm/install-backup-cron.sh
+```
+
+Test restore before relying on backups. On a disposable staging stack:
+
+```bash
+cd /opt/portfolio-staging/deploy/compose
+CONFIRM_RESTORE=I_UNDERSTAND_THIS_OVERWRITES_DATABASE \
+RESTORE_DUMP=./backups/portfolio-postgres-YYYYMMDDTHHMMSSZ.dump \
+./restore-postgres.sh
+BASE_URL=http://127.0.0.1:18080 ./smoke-check.sh
 ```
 
 ## 12. Update Deployment

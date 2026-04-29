@@ -73,6 +73,7 @@ Check health:
 ```bash
 docker compose -f compose.yml ps
 curl -fsS http://127.0.0.1/api/healthz
+BASE_URL=http://127.0.0.1 ./smoke-check.sh
 ```
 
 ## Backups
@@ -96,6 +97,16 @@ For a scheduled production backup on a VM, run:
 ```bash
 sudo APP_DIR=/opt/portfolio-production DEPLOY_USER=portfolio /opt/portfolio-production/deploy/vm/install-backup-cron.sh
 ```
+
+Restore a custom-format dump only after you have a tested rollback reason:
+
+```bash
+CONFIRM_RESTORE=I_UNDERSTAND_THIS_OVERWRITES_DATABASE \
+RESTORE_DUMP=./backups/portfolio-postgres-20260101T030000Z.dump \
+./restore-postgres.sh
+```
+
+The restore helper creates a pre-restore backup unless `SKIP_PRE_RESTORE_BACKUP=true` is set.
 
 ## Security Notes
 
