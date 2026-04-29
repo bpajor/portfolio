@@ -44,13 +44,44 @@ jobs:
             docker compose --env-file .env -f compose.yml up -d --build
             docker compose --env-file .env -f compose.yml ps
 
-      - name: Staging smoke checks
+      - name: Open staging SSH tunnel
         env:
-          BASE_URL: ${{ vars.BASE_URL }}
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+          STAGING_TUNNEL_LOCAL_PORT: ${{ vars.STAGING_TUNNEL_LOCAL_PORT }}
+          STAGING_TUNNEL_TARGET_HOST: ${{ vars.STAGING_TUNNEL_TARGET_HOST }}
+          STAGING_TUNNEL_TARGET_PORT: ${{ vars.STAGING_TUNNEL_TARGET_PORT }}
         run: |
           set -euo pipefail
-          curl -fsS "$BASE_URL/api/healthz"
-          status="$(curl -sS -o /dev/null -w '%{http_code}' "$BASE_URL/mcp")"
+          local_port="${STAGING_TUNNEL_LOCAL_PORT:-3000}"
+          target_host="${STAGING_TUNNEL_TARGET_HOST:-127.0.0.1}"
+          target_port="${STAGING_TUNNEL_TARGET_PORT:-18080}"
+
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/known_hosts
+
+          ssh -fN \
+            -i ~/.ssh/deploy_key \
+            -p "$SSH_PORT" \
+            -o ExitOnForwardFailure=yes \
+            -o ServerAliveInterval=30 \
+            -L "${local_port}:${target_host}:${target_port}" \
+            "${SSH_USER}@${SSH_HOST}"
+
+          echo "STAGING_BASE_URL=http://127.0.0.1:${local_port}" >> "$GITHUB_ENV"
+
+      - name: Staging smoke checks
+        run: |
+          set -euo pipefail
+          curl -fsS "$STAGING_BASE_URL/api/healthz"
+          status="$(curl -sS -o /dev/null -w '%{http_code}' "$STAGING_BASE_URL/mcp")"
           test "$status" = "401"
 
       - name: Checkout
@@ -69,9 +100,7 @@ jobs:
         run: npx --workspace apps/web playwright install --with-deps chromium
 
       - name: Staging E2E tests
-        env:
-          E2E_BASE_URL: ${{ vars.BASE_URL }}
-        run: npm run test:e2e
+        run: E2E_BASE_URL="$STAGING_BASE_URL" npm run test:e2e
 
   approve-production:
     name: Await production approval

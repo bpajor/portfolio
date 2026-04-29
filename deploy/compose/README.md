@@ -46,6 +46,17 @@ HTTP_PORT=18080
 SITE_ADDRESS=:80
 ```
 
+For private staging on the same VM as production, use a separate Compose project and bind the staging Caddy ports to localhost only:
+
+```bash
+COMPOSE_PROJECT_NAME=portfolio-staging
+SITE_ADDRESS=:80
+HTTP_PORT=127.0.0.1:18080
+HTTPS_PORT=127.0.0.1:18443
+```
+
+Production should use a different Compose project name, for example `portfolio-production`, so database volumes and containers remain isolated.
+
 Check health:
 
 ```bash
