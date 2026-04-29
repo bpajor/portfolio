@@ -47,6 +47,8 @@ terraform plan
 terraform apply
 ```
 
+Pull request CI runs the same non-mutating checks with `terraform init -backend=false`, `terraform fmt -check -recursive`, and `terraform validate`.
+
 After apply, use the `static_ip` output to create Cloudflare DNS records. Then bootstrap the VM with `deploy/vm/bootstrap-debian.sh`; the full flow is documented in `docs/gcp-dns-deployment.md`.
 
 ## SSH

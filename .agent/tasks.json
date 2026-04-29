@@ -105,6 +105,13 @@
       "priority": 15,
       "status": "completed",
       "file": ".agent/tasks/TASK-015.json"
+    },
+    {
+      "id": "016",
+      "title": "Add Terraform CI validation",
+      "priority": 16,
+      "status": "completed",
+      "file": ".agent/tasks/TASK-016.json"
     }
   ]
 }

@@ -129,3 +129,27 @@ jobs:
       - name: Stop integration database
         if: always()
         run: docker compose -f compose.dev.yml down -v
+
+  terraform:
+    name: Terraform validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.9.8"
+
+      - name: Check formatting
+        working-directory: infra/gcp
+        run: terraform fmt -check -recursive
+
+      - name: Initialize without backend
+        working-directory: infra/gcp
+        run: terraform init -backend=false
+
+      - name: Validate configuration
+        working-directory: infra/gcp
+        run: terraform validate
