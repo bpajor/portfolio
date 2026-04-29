@@ -88,6 +88,51 @@ func TestDecodeJSONRejectsUnknownFields(t *testing.T) {
 	}
 }
 
+func TestAdminCSRFGuard(t *testing.T) {
+	server := Server{cfg: testConfig()}
+	handler := server.requireAdminCSRF(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+
+	tests := []struct {
+		name    string
+		method  string
+		origin  string
+		referer string
+		want    int
+		code    string
+	}{
+		{name: "safe method without origin", method: http.MethodGet, want: http.StatusNoContent},
+		{name: "missing origin", method: http.MethodPost, want: http.StatusForbidden, code: "csrf_required"},
+		{name: "allowed origin", method: http.MethodPost, origin: "http://localhost:3000", want: http.StatusNoContent},
+		{name: "allowed referer", method: http.MethodPut, referer: "http://localhost:3000/admin/posts", want: http.StatusNoContent},
+		{name: "disallowed origin", method: http.MethodDelete, origin: "https://evil.example", want: http.StatusForbidden, code: "csrf_invalid"},
+		{name: "null origin", method: http.MethodPost, origin: "null", want: http.StatusForbidden, code: "csrf_required"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			res := httptest.NewRecorder()
+			req := httptest.NewRequest(tt.method, "/api/admin/posts", nil)
+			if tt.origin != "" {
+				req.Header.Set("Origin", tt.origin)
+			}
+			if tt.referer != "" {
+				req.Header.Set("Referer", tt.referer)
+			}
+
+			handler.ServeHTTP(res, req)
+
+			if res.Code != tt.want {
+				t.Fatalf("status = %d, want %d, body = %s", res.Code, tt.want, res.Body.String())
+			}
+			if tt.code != "" {
+				assertErrorCode(t, res.Body.Bytes(), tt.code)
+			}
+		})
+	}
+}
+
 func TestHelpers(t *testing.T) {
 	if got := slugify("  MCP as a Portfolio Interface!  "); got != "mcp-as-a-portfolio-interface" {
 		t.Fatalf("slugify = %q", got)

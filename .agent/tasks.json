@@ -119,6 +119,13 @@
       "priority": 17,
       "status": "completed",
       "file": ".agent/tasks/TASK-017.json"
+    },
+    {
+      "id": "018",
+      "title": "Add CSRF guard for admin mutations",
+      "priority": 18,
+      "status": "completed",
+      "file": ".agent/tasks/TASK-018.json"
     }
   ]
 }

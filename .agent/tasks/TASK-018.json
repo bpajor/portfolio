@@ -1,0 +1,23 @@
+{
+  "id": "018",
+  "title": "Add CSRF guard for admin mutations",
+  "status": "completed",
+  "goal": "Protect cookie-authenticated admin mutation routes from cross-site request forgery before production launch.",
+  "scope": [
+    "Require an allowed Origin or Referer header for unsafe admin mutation methods.",
+    "Apply the guard to admin create/update/delete/moderation routes and logout.",
+    "Keep safe admin reads available behind normal session authentication.",
+    "Add focused unit coverage for allowed, missing, null, referer, and disallowed origins."
+  ],
+  "verification": [
+    "Go API tests pass.",
+    "Admin mutation without Origin or Referer returns csrf_required.",
+    "Admin mutation from disallowed Origin returns csrf_invalid.",
+    "Admin mutation from configured allowed origin passes the CSRF guard."
+  ],
+  "completed_notes": [
+    "Added requireAdminCSRF middleware with Origin and Referer validation against API_ALLOWED_ORIGINS.",
+    "Applied the middleware to unsafe admin write routes and logout.",
+    "Added unit coverage in router_test.go."
+  ]
+}
