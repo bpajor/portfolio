@@ -303,6 +303,7 @@ Admin requirements:
 - password hashing with Argon2id or bcrypt,
 - optional TOTP MFA,
 - rate-limited login,
+- Origin/Referer CSRF guard for cookie-auth admin mutations,
 - audit log for destructive actions.
 
 ## 8. Go API Design
@@ -338,7 +339,7 @@ Security middleware:
 - structured logs,
 - panic recovery,
 - CORS allowlist,
-- CSRF for cookie-auth admin actions,
+- CSRF Origin/Referer validation for cookie-auth admin mutations,
 - rate limits by route,
 - request body size limits,
 - secure response headers at Caddy and app layer.

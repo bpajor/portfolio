@@ -92,18 +92,22 @@ func New(cfg config.Config, logger *slog.Logger, db *pgxpool.Pool, repo content.
 
 		r.Route("/admin", func(r chi.Router) {
 			r.Post("/auth/login", server.adminLogin)
-			r.Post("/auth/logout", server.adminLogout)
+			r.With(server.requireAdminCSRF).Post("/auth/logout", server.adminLogout)
 
 			r.Group(func(r chi.Router) {
 				r.Use(server.requireAdmin)
 				r.Get("/me", server.adminMe)
 				r.Get("/posts", server.adminListPosts)
-				r.Post("/posts", server.adminCreatePost)
 				r.Get("/posts/{id}", server.adminGetPost)
-				r.Put("/posts/{id}", server.adminUpdatePost)
-				r.Delete("/posts/{id}", server.adminDeletePost)
 				r.Get("/comments", server.adminListComments)
-				r.Put("/comments/{id}/moderate", server.adminModerateComment)
+
+				r.Group(func(r chi.Router) {
+					r.Use(server.requireAdminCSRF)
+					r.Post("/posts", server.adminCreatePost)
+					r.Put("/posts/{id}", server.adminUpdatePost)
+					r.Delete("/posts/{id}", server.adminDeletePost)
+					r.Put("/comments/{id}/moderate", server.adminModerateComment)
+				})
 			})
 		})
 	})
@@ -607,6 +611,68 @@ func (s Server) requireAdmin(next http.Handler) http.Handler {
 		})
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
+}
+
+func (s Server) requireAdminCSRF(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet, http.MethodHead, http.MethodOptions:
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		origin := requestOrigin(r)
+		if origin == "" {
+			writeError(w, http.StatusForbidden, "csrf_required", "Admin mutation requires an Origin or Referer header.")
+			return
+		}
+		if !s.originAllowed(origin) {
+			writeError(w, http.StatusForbidden, "csrf_invalid", "Admin mutation origin is not allowed.")
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
+}
+
+func (s Server) originAllowed(origin string) bool {
+	for _, allowed := range s.cfg.AllowedOrigins {
+		if allowed == "*" || strings.EqualFold(strings.TrimRight(allowed, "/"), origin) {
+			return true
+		}
+	}
+	return false
+}
+
+func requestOrigin(r *http.Request) string {
+	if origin := normalizedOrigin(r.Header.Get("Origin")); origin != "" {
+		return origin
+	}
+	return normalizedRefererOrigin(r.Header.Get("Referer"))
+}
+
+func normalizedOrigin(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" || value == "null" {
+		return ""
+	}
+	u, err := url.Parse(value)
+	if err != nil || u.Scheme == "" || u.Host == "" {
+		return ""
+	}
+	return strings.ToLower(u.Scheme + "://" + u.Host)
+}
+
+func normalizedRefererOrigin(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return ""
+	}
+	u, err := url.Parse(value)
+	if err != nil || u.Scheme == "" || u.Host == "" {
+		return ""
+	}
+	return strings.ToLower(u.Scheme + "://" + u.Host)
 }
 
 func (s Server) sessionCookie(token string, expiresAt time.Time) *http.Cookie {
