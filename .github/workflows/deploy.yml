@@ -41,6 +41,7 @@ jobs:
             git checkout main
             git pull --ff-only origin main
             cd deploy/compose
+            ./validate-env.sh staging .env
             docker compose --env-file .env -f compose.yml up -d --build
             docker compose --env-file .env -f compose.yml ps
 
@@ -135,6 +136,7 @@ jobs:
             git checkout main
             git pull --ff-only origin main
             cd deploy/compose
+            ./validate-env.sh production .env
             ./backup-postgres.sh || true
             docker compose --env-file .env -f compose.yml up -d --build
             docker compose --env-file .env -f compose.yml ps

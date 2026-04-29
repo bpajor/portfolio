@@ -98,6 +98,13 @@
       "priority": 14,
       "status": "completed",
       "file": ".agent/tasks/TASK-014.json"
+    },
+    {
+      "id": "015",
+      "title": "Add production environment safety checks",
+      "priority": 15,
+      "status": "completed",
+      "file": ".agent/tasks/TASK-015.json"
     }
   ]
 }
