@@ -29,7 +29,7 @@ Set required reviewers on `production`. Leave `staging` without manual approval 
 
 Each environment needs this variable:
 
-- `BASE_URL`: public URL for that environment, for example `https://staging.bpajor.dev` or `https://bpajor.dev`
+- `BASE_URL`: GitHub environment URL. For production, set the public URL, for example `https://bpajor.dev`.
 
 Each environment needs these secrets:
 
@@ -37,9 +37,37 @@ Each environment needs these secrets:
 - `SSH_USER`: deploy user on the VM
 - `SSH_PRIVATE_KEY`: private key for the deploy user
 - `SSH_PORT`: usually `22`
+- `SSH_KNOWN_HOSTS`: expected SSH host key line for the VM
 - `APP_DIR`: absolute path to the checked-out repository on the VM
 
 Use separate secrets for staging and production. Production secrets should only exist in the `production` environment.
+
+For same-VM private staging, set these staging environment variables:
+
+- `BASE_URL`: `http://127.0.0.1:3000`
+- `STAGING_TUNNEL_LOCAL_PORT`: `3000`
+- `STAGING_TUNNEL_TARGET_HOST`: `127.0.0.1`
+- `STAGING_TUNNEL_TARGET_PORT`: `18080`
+
+The staging VM `.env` should bind Caddy only to localhost:
+
+```bash
+COMPOSE_PROJECT_NAME=portfolio-staging
+SITE_ADDRESS=:80
+HTTP_PORT=127.0.0.1:18080
+HTTPS_PORT=127.0.0.1:18443
+```
+
+The production VM `.env` can use the public ports and a different Compose project name:
+
+```bash
+COMPOSE_PROJECT_NAME=portfolio-production
+SITE_ADDRESS=bpajor.dev
+HTTP_PORT=80
+HTTPS_PORT=443
+```
+
+With this model, staging is deployed on the same VM but is not publicly exposed. GitHub Actions opens an SSH tunnel to `127.0.0.1:18080` and runs smoke/E2E checks through that tunnel.
 
 ## Main Deployment Flow
 
@@ -49,14 +77,15 @@ Flow:
 
 1. Reuse the full PR CI workflow.
 2. Deploy `main` to `staging` over SSH.
-3. Run smoke checks against staging:
+3. Open an SSH tunnel from the GitHub runner to the private staging Caddy port.
+4. Run smoke checks against staging:
    - `/api/healthz` must return success.
    - `/mcp` must reject anonymous access with `401`.
-4. Run Playwright E2E checks against the deployed staging URL.
-5. Wait for `production` environment approval.
-6. Create a best-effort PostgreSQL backup on production.
-7. Deploy `main` to production over SSH.
-8. Run the same production smoke checks.
+5. Run Playwright E2E checks against the deployed staging stack through the tunnel.
+6. Wait for `production` environment approval.
+7. Create a best-effort PostgreSQL backup on production.
+8. Deploy `main` to production over SSH.
+9. Run the same production smoke checks.
 
 ## VM Requirements
 

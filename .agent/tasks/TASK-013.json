@@ -1,0 +1,24 @@
+{
+  "id": "013",
+  "title": "Implement private same-VM staging environment",
+  "status": "completed",
+  "goal": "Allow staging and production to run on the same low-cost VM without sharing containers, volumes, or public staging ports.",
+  "scope": [
+    "Parameterize Docker Compose project names so staging and production stacks are isolated.",
+    "Document same-VM staging and production .env values.",
+    "Run staging smoke and E2E checks through an SSH tunnel from GitHub Actions.",
+    "Keep staging private without adding public firewall ports."
+  ],
+  "verification": [
+    "Docker Compose config accepts environment-specific project names.",
+    "GitHub Actions deploy workflow opens a staging tunnel before smoke checks.",
+    "Playwright E2E uses the tunneled staging URL.",
+    "Documentation explains required GitHub variables and secrets."
+  ],
+  "completed_notes": [
+    "Changed Compose project naming to use COMPOSE_PROJECT_NAME with a portfolio fallback.",
+    "Added localhost-bound staging port examples for same-VM deployments.",
+    "Updated deploy workflow to open an SSH tunnel to the private staging stack before smoke and E2E checks.",
+    "Documented SSH_KNOWN_HOSTS and staging tunnel variables in the CI/CD guide."
+  ]
+}

@@ -1,4 +1,4 @@
-name: portfolio
+name: ${COMPOSE_PROJECT_NAME:-portfolio}
 
 services:
   caddy:

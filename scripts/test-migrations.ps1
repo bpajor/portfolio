@@ -9,16 +9,19 @@ try {
   docker compose -f $composeFile down -v
   docker compose -f $composeFile up -d postgres
 
-  for ($i = 0; $i -lt 40; $i++) {
-    docker compose -f $composeFile exec -T postgres pg_isready -U portfolio -d portfolio | Out-Null
+  $ready = $false
+  for ($i = 0; $i -lt 60; $i++) {
+    docker compose -f $composeFile exec -T postgres psql -v ON_ERROR_STOP=1 -U portfolio -d portfolio -tAc "SELECT 1" | Out-Null
     if ($LASTEXITCODE -eq 0) {
+      $ready = $true
       break
     }
     Start-Sleep -Seconds 1
   }
 
-  if ($LASTEXITCODE -ne 0) {
-    throw "PostgreSQL did not become ready."
+  if (-not $ready) {
+    docker compose -f $composeFile logs postgres
+    throw "PostgreSQL database 'portfolio' did not become ready."
   }
 
   $parts = (Get-Content -Raw $migrationFile) -split "-- \+goose Down"

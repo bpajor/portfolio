@@ -84,6 +84,13 @@
       "priority": 12,
       "status": "completed",
       "file": ".agent/tasks/TASK-012.json"
+    },
+    {
+      "id": "013",
+      "title": "Implement private same-VM staging environment",
+      "priority": 13,
+      "status": "completed",
+      "file": ".agent/tasks/TASK-013.json"
     }
   ]
 }

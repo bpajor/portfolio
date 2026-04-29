@@ -21,14 +21,20 @@ docker run -d \
   -e "POSTGRES_DB=$database" \
   postgres:13 >/dev/null
 
+ready=0
 for _ in $(seq 1 60); do
-  if docker exec "$container" pg_isready -U "$user" -d "$database" >/dev/null 2>&1; then
+  if docker exec "$container" psql -v ON_ERROR_STOP=1 -U "$user" -d "$database" -tAc "SELECT 1" >/dev/null 2>&1; then
+    ready=1
     break
   fi
   sleep 1
 done
 
-docker exec "$container" pg_isready -U "$user" -d "$database" >/dev/null
+if [[ "$ready" -ne 1 ]]; then
+  echo "PostgreSQL database '$database' did not become ready." >&2
+  docker logs "$container" >&2 || true
+  exit 1
+fi
 
 sed '/-- +goose Down/,$d' "$repo_root/db/migrations/00001_initial_schema.sql" |
   docker exec -i "$container" psql -v ON_ERROR_STOP=1 -U "$user" -d "$database" >/dev/null
