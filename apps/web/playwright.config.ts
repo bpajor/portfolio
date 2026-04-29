@@ -1,5 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
+const externalBaseURL = process.env.E2E_BASE_URL;
+
 export default defineConfig({
   testDir: "./e2e",
   timeout: 30_000,
@@ -9,15 +11,17 @@ export default defineConfig({
   fullyParallel: true,
   reporter: "list",
   use: {
-    baseURL: "http://127.0.0.1:3000",
+    baseURL: externalBaseURL ?? "http://127.0.0.1:3000",
     trace: "on-first-retry"
   },
-  webServer: {
-    command: "npm run dev",
-    url: "http://127.0.0.1:3000",
-    reuseExistingServer: true,
-    timeout: 120_000
-  },
+  webServer: externalBaseURL
+    ? undefined
+    : {
+        command: "npm run dev",
+        url: "http://127.0.0.1:3000",
+        reuseExistingServer: true,
+        timeout: 120_000
+      },
   projects: [
     {
       name: "chromium",

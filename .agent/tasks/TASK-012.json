@@ -1,7 +1,7 @@
 {
   "id": "012",
   "title": "Implement GitHub CI/CD with staging approval gate",
-  "status": "pending",
+  "status": "completed",
   "goal": "Create a GitHub Actions delivery process that verifies changes, deploys to staging, runs checks, and requires developer approval before production deploy.",
   "scope": [
     "Add pull request CI for install, lint, typecheck, build, Go tests, sqlc generation check, migration validation, and targeted E2E tests.",
@@ -17,5 +17,11 @@
     "Production job waits for protected environment approval.",
     "Production deploy uses environment-scoped secrets only.",
     "Rollback procedure is documented."
+  ],
+  "completed_notes": [
+    "Added pull request CI with web checks, Go tests, sqlc drift check, migration validation, and database-backed integration tests.",
+    "Added a reusable CI workflow and a main deploy workflow with staging smoke and Playwright E2E checks before production approval.",
+    "Configured the production job to use GitHub protected environment approval and environment-scoped secrets.",
+    "Documented GitHub environments, required variables/secrets, VM expectations, rollback, and approval checklist."
   ]
 }
