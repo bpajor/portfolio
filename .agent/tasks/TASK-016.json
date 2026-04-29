@@ -1,0 +1,22 @@
+{
+  "id": "016",
+  "title": "Add Terraform CI validation",
+  "status": "completed",
+  "goal": "Protect GCP infrastructure changes with non-mutating Terraform checks in pull request CI.",
+  "scope": [
+    "Add a Terraform validation job to pull request CI.",
+    "Check Terraform formatting in infra/gcp.",
+    "Run terraform init without a backend and terraform validate.",
+    "Document local Terraform validation commands."
+  ],
+  "verification": [
+    "Terraform workflow YAML parses.",
+    "Terraform fmt, init, and validate pass locally.",
+    "Pull request CI includes the Terraform validation job."
+  ],
+  "completed_notes": [
+    "Added a Terraform validation job to .github/workflows/pr-ci.yml.",
+    "Pinned Terraform to 1.9.8 in CI.",
+    "Documented local Terraform validation in docs/testing.md and infra/gcp/README.md."
+  ]
+}

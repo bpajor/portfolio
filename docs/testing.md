@@ -74,3 +74,14 @@ npm run test:migrations
 This starts a disposable local PostgreSQL container, applies the migration Up section, applies the Down section, and verifies the schema is removed.
 
 On Windows, this depends on Docker Desktop and WSL being healthy. If Docker Compose hangs locally, run this layer in CI or after restarting Docker Desktop.
+
+## Terraform Validation
+
+```bash
+cd infra/gcp
+terraform fmt -check -recursive
+terraform init -backend=false
+terraform validate
+```
+
+These checks are non-mutating and run in pull request CI.
