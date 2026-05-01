@@ -47,6 +47,7 @@ Start the stack:
 
 ```bash
 ./validate-env.sh production .env
+./preflight.sh production .env
 docker compose -f compose.yml up -d --build
 ```
 
@@ -75,6 +76,18 @@ docker compose -f compose.yml ps
 curl -fsS http://127.0.0.1/api/healthz
 BASE_URL=http://127.0.0.1 ./smoke-check.sh
 ```
+
+Before the first GitHub Actions deployment, run the preflight script on the VM:
+
+```bash
+cd /opt/portfolio-staging/deploy/compose
+./preflight.sh staging .env
+
+cd /opt/portfolio-production/deploy/compose
+BASE_URL=https://bpajor.dev ./preflight.sh production .env
+```
+
+The preflight validates the `.env`, Docker Compose configuration, local git checkout, and optional smoke checks when `BASE_URL` is set. It also prints the GitHub environment variables and secrets that must exist before `DEPLOY_ENABLED=true` is enabled.
 
 ## Backups
 

@@ -83,6 +83,16 @@ When the deployment target is ready, set this repository variable:
 
 Manual `workflow_dispatch` runs are allowed even when `DEPLOY_ENABLED` is not `true`, so the first staging and production launch can be started intentionally from GitHub Actions.
 
+Before enabling automatic deploys, run the VM-side preflight checks:
+
+```bash
+cd /opt/portfolio-staging/deploy/compose
+./preflight.sh staging .env
+
+cd /opt/portfolio-production/deploy/compose
+BASE_URL=https://bpajor.dev ./preflight.sh production .env
+```
+
 Flow:
 
 1. Reuse the full PR CI workflow.

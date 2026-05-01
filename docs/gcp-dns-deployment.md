@@ -190,10 +190,12 @@ Generate initial environment files with strong random secrets:
 cd /opt/portfolio-staging/deploy/compose
 sudo -u portfolio DOMAIN=bpajor.dev ADMIN_EMAIL=blazej122@vp.pl TURNSTILE_SECRET_KEY=YOUR_TURNSTILE_SECRET BACKUP_BUCKET=gs://YOUR_BACKUP_BUCKET ./generate-env.sh staging > .env
 ./validate-env.sh staging .env
+./preflight.sh staging .env
 
 cd /opt/portfolio-production/deploy/compose
 sudo -u portfolio DOMAIN=bpajor.dev ADMIN_EMAIL=blazej122@vp.pl TURNSTILE_SECRET_KEY=YOUR_TURNSTILE_SECRET BACKUP_BUCKET=gs://YOUR_BACKUP_BUCKET ./generate-env.sh production > .env
 ./validate-env.sh production .env
+./preflight.sh production .env
 ```
 
 ## 8. Deploy Application

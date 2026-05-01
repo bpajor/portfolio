@@ -1,0 +1,23 @@
+{
+  "id": "021",
+  "title": "Add deployment preflight checks",
+  "status": "completed",
+  "goal": "Make the first staging and production deployment easier to verify before enabling automatic deploys.",
+  "scope": [
+    "Add a VM-side preflight script for staging and production Compose environments.",
+    "Validate required commands, repository state, .env values, and Docker Compose configuration.",
+    "Run optional smoke checks when BASE_URL is provided.",
+    "Document preflight usage before the first GitHub Actions deployment."
+  ],
+  "verification": [
+    "preflight.sh fails when the mode is missing or invalid.",
+    "preflight.sh validates environment files through validate-env.sh.",
+    "preflight.sh validates Docker Compose configuration.",
+    "Documentation references the preflight step in deployment workflows."
+  ],
+  "completed_notes": [
+    "Added deploy/compose/preflight.sh for VM-side launch readiness checks.",
+    "Documented preflight commands in Compose, CI/CD, and GCP deployment guides.",
+    "Registered TASK-021 in the task tracker."
+  ]
+}

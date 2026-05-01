@@ -140,6 +140,13 @@
       "priority": 20,
       "status": "completed",
       "file": ".agent/tasks/TASK-020.json"
+    },
+    {
+      "id": "021",
+      "title": "Add deployment preflight checks",
+      "priority": 21,
+      "status": "completed",
+      "file": ".agent/tasks/TASK-021.json"
     }
   ]
 }
