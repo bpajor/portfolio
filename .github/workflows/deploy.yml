@@ -39,6 +39,25 @@ jobs:
       name: staging
       url: ${{ vars.BASE_URL }}
     steps:
+      - name: Validate staging deployment secrets
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+          SSH_FINGERPRINT: ${{ secrets.SSH_FINGERPRINT }}
+          APP_DIR: ${{ secrets.APP_DIR }}
+        run: |
+          set -euo pipefail
+          for name in SSH_HOST SSH_USER SSH_PRIVATE_KEY SSH_PORT SSH_KNOWN_HOSTS SSH_FINGERPRINT APP_DIR; do
+            value="$(printenv "$name")"
+            if [ -z "$value" ]; then
+              echo "::error::$name is required in the staging environment"
+              exit 1
+            fi
+          done
+
       - name: Deploy over SSH
         uses: appleboy/ssh-action@v1.2.5
         with:
@@ -46,7 +65,7 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT }}
-          script_stop: true
+          fingerprint: ${{ secrets.SSH_FINGERPRINT }}
           script: |
             set -euo pipefail
             cd "${{ secrets.APP_DIR }}"
@@ -85,6 +104,8 @@ jobs:
             -i ~/.ssh/deploy_key \
             -p "$SSH_PORT" \
             -o ExitOnForwardFailure=yes \
+            -o StrictHostKeyChecking=yes \
+            -o UserKnownHostsFile=~/.ssh/known_hosts \
             -o ServerAliveInterval=30 \
             -L "${local_port}:${target_host}:${target_port}" \
             "${SSH_USER}@${SSH_HOST}"
@@ -134,6 +155,25 @@ jobs:
       name: production
       url: ${{ vars.BASE_URL }}
     steps:
+      - name: Validate production deployment secrets
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+          SSH_FINGERPRINT: ${{ secrets.SSH_FINGERPRINT }}
+          APP_DIR: ${{ secrets.APP_DIR }}
+        run: |
+          set -euo pipefail
+          for name in SSH_HOST SSH_USER SSH_PRIVATE_KEY SSH_PORT SSH_KNOWN_HOSTS SSH_FINGERPRINT APP_DIR; do
+            value="$(printenv "$name")"
+            if [ -z "$value" ]; then
+              echo "::error::$name is required in the production environment"
+              exit 1
+            fi
+          done
+
       - name: Deploy over SSH
         uses: appleboy/ssh-action@v1.2.5
         with:
@@ -141,7 +181,7 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT }}
-          script_stop: true
+          fingerprint: ${{ secrets.SSH_FINGERPRINT }}
           script: |
             set -euo pipefail
             cd "${{ secrets.APP_DIR }}"

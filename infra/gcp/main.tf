@@ -159,6 +159,13 @@ resource "google_compute_instance" "web" {
     enable_integrity_monitoring = true
   }
 
+  lifecycle {
+    precondition {
+      condition     = startswith(var.zone, "${var.region}-")
+      error_message = "zone must belong to region, for example region us-central1 with zone us-central1-a."
+    }
+  }
+
   depends_on = [
     google_compute_firewall.allow_web,
     google_compute_project_metadata_item.os_login,
@@ -201,5 +208,12 @@ resource "google_billing_budget" "monthly" {
   threshold_rules {
     threshold_percent = 1.2
     spend_basis       = "FORECASTED_SPEND"
+  }
+
+  lifecycle {
+    precondition {
+      condition     = trimspace(var.billing_account_id) != ""
+      error_message = "billing_account_id is required when enable_billing_budget is true."
+    }
   }
 }

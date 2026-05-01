@@ -24,6 +24,8 @@ The defaults intentionally target the Compute Engine Free Tier:
 
 If you move to a European region, verify the monthly cost first.
 
+The Terraform variables intentionally reject non-Free-Tier regions, larger machine types, larger boot disks, and non-standard boot disks for the initial release. Loosen those guardrails in a separate PR only after accepting the recurring cost.
+
 ## Usage
 
 Enable the Service Usage API once in the project if this is a completely fresh GCP project:
@@ -60,6 +62,8 @@ terraform output -raw ssh_command
 ```
 
 If `ssh_source_ranges` is empty, direct SSH port `22` is not opened by Terraform. Use Google Cloud Console SSH, IAP, or temporarily add your current public IP as `/32`.
+
+GitHub-hosted Actions deployments use direct SSH in the current workflow. Before setting `DEPLOY_ENABLED=true`, make sure `ssh_source_ranges` includes the deploy runner source CIDR, or use a self-hosted runner/manual deploy path.
 
 ## Backups
 

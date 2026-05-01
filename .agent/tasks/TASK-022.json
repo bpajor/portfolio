@@ -1,0 +1,28 @@
+{
+  "id": "022",
+  "title": "Add Terraform input guardrails",
+  "status": "completed",
+  "goal": "Fail fast on Terraform inputs that would break the first GCP apply or drift away from the initial low-cost release target.",
+  "scope": [
+    "Validate GCP project, region, zone, resource prefix, domain, backup bucket, SSH CIDRs, and budget inputs.",
+    "Keep the first release constrained to Free-Tier-friendly regions, e2-micro, pd-standard, and a 10-30 GB boot disk.",
+    "Close first-deploy SSH blockers by wiring deploy public key installation and host fingerprint verification.",
+    "Document the direct SSH firewall requirement for GitHub-hosted deployments.",
+    "Document that relaxing the guardrails is an explicit cost decision."
+  ],
+  "verification": [
+    "Terraform formatting check passes.",
+    "Terraform validate passes with backend disabled.",
+    "Invalid low-cost inputs fail through variable validation.",
+    "Deploy workflow fails early when required SSH secrets are missing.",
+    "Terraform catches mismatched region and zone values before apply."
+  ],
+  "completed_notes": [
+    "Added variable validation blocks in infra/gcp/variables.tf.",
+    "Added optional DEPLOY_PUBLIC_KEY installation to the VM bootstrap script.",
+    "Added SSH_FINGERPRINT validation and appleboy host fingerprint verification to deploy jobs.",
+    "Documented the SSH firewall requirement for GitHub-hosted deploy runners.",
+    "Documented the initial cost guardrails in the Terraform and GCP deployment guides.",
+    "Registered TASK-022 in the task tracker."
+  ]
+}

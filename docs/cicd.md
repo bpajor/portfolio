@@ -38,6 +38,7 @@ Each environment needs these secrets:
 - `SSH_PRIVATE_KEY`: private key for the deploy user
 - `SSH_PORT`: usually `22`
 - `SSH_KNOWN_HOSTS`: expected SSH host key line for the VM
+- `SSH_FINGERPRINT`: SHA256 host key fingerprint used by `appleboy/ssh-action`
 - `APP_DIR`: absolute path to the checked-out repository on the VM
 
 Use separate secrets for staging and production. Production secrets should only exist in the `production` environment.
@@ -93,6 +94,24 @@ cd /opt/portfolio-production/deploy/compose
 BASE_URL=https://bpajor.dev ./preflight.sh production .env
 ```
 
+Generate the deploy SSH key locally, install only the public key on the VM through the bootstrap script, and store the private key in GitHub environment secrets:
+
+```bash
+ssh-keygen -t ed25519 -a 200 -f ~/.ssh/portfolio-github-actions -C "github-actions portfolio deploy"
+
+sudo DEPLOY_PUBLIC_KEY="$(cat ~/.ssh/portfolio-github-actions.pub)" \
+  bash deploy/vm/bootstrap-debian.sh
+```
+
+Get the host key values for GitHub secrets:
+
+```bash
+ssh-keyscan -p 22 YOUR_VM_IP_OR_DOMAIN
+ssh-keyscan -p 22 YOUR_VM_IP_OR_DOMAIN 2>/dev/null | ssh-keygen -l -f - | awk '{print $2}' | head -n 1
+```
+
+Use the first command output for `SSH_KNOWN_HOSTS` and the second command output for `SSH_FINGERPRINT`.
+
 Flow:
 
 1. Reuse the full PR CI workflow.
@@ -118,6 +137,8 @@ docker compose --env-file .env -f deploy/compose/compose.yml up -d --build
 ```
 
 The VM should already have Docker, Docker Compose, repository checkout, and `deploy/compose/.env` configured. See `deploy/compose/README.md` and `docs/gcp-dns-deployment.md`.
+
+The GitHub-hosted deploy runner must also be able to reach the VM over SSH. In Terraform this means `ssh_source_ranges` must include the source CIDR used by the deploy runner. For a tighter setup, prefer a self-hosted runner with a stable egress IP or a future IAP-based deploy workflow. If direct SSH is closed, PR CI can still pass but staging and production deploy jobs will fail before any Compose command runs.
 
 ## GCP Access Model
 

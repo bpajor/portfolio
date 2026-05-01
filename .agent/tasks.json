@@ -147,6 +147,13 @@
       "priority": 21,
       "status": "completed",
       "file": ".agent/tasks/TASK-021.json"
+    },
+    {
+      "id": "022",
+      "title": "Add Terraform input guardrails",
+      "priority": 22,
+      "status": "completed",
+      "file": ".agent/tasks/TASK-022.json"
     }
   ]
 }
