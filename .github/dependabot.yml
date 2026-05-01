@@ -13,6 +13,10 @@ updates:
       npm-dependencies:
         patterns:
           - "*"
+    ignore:
+      - dependency-name: "*"
+        update-types:
+          - "version-update:semver-major"
 
   - package-ecosystem: "gomod"
     directory: "/apps/api"
@@ -45,6 +49,10 @@ updates:
       day: "monday"
       time: "06:45"
       timezone: "Europe/Warsaw"
+    ignore:
+      - dependency-name: "*"
+        update-types:
+          - "version-update:semver-major"
 
   - package-ecosystem: "terraform"
     directory: "/infra/gcp"
@@ -53,6 +61,10 @@ updates:
       day: "monday"
       time: "07:00"
       timezone: "Europe/Warsaw"
+    ignore:
+      - dependency-name: "*"
+        update-types:
+          - "version-update:semver-major"
 
   - package-ecosystem: "docker"
     directory: "/apps/web"
@@ -61,6 +73,10 @@ updates:
       day: "monday"
       time: "07:15"
       timezone: "Europe/Warsaw"
+    ignore:
+      - dependency-name: "node"
+        update-types:
+          - "version-update:semver-major"
 
   - package-ecosystem: "docker"
     directory: "/apps/api"
