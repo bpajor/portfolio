@@ -18,10 +18,23 @@ jobs:
     name: Verify before deployment
     uses: ./.github/workflows/pr-ci.yml
 
+  deployment-disabled:
+    name: Deployment disabled
+    runs-on: ubuntu-latest
+    needs: verify
+    if: ${{ github.event_name != 'workflow_dispatch' && vars.DEPLOY_ENABLED != 'true' }}
+    steps:
+      - name: Explain disabled deployment
+        run: |
+          echo "DEPLOY_ENABLED is not true, so push-to-main deployment is disabled."
+          echo "Set the repository variable DEPLOY_ENABLED=true after staging and production environments are configured."
+          echo "Manual workflow_dispatch runs can still deploy when you intentionally start them."
+
   deploy-staging:
     name: Deploy staging
     runs-on: ubuntu-latest
     needs: verify
+    if: ${{ github.event_name == 'workflow_dispatch' || vars.DEPLOY_ENABLED == 'true' }}
     environment:
       name: staging
       url: ${{ vars.BASE_URL }}
