@@ -1,0 +1,23 @@
+{
+  "id": "020",
+  "title": "Add deployment enable gate",
+  "status": "completed",
+  "goal": "Avoid noisy or unsafe push-to-main deployment attempts before the first GCP and GitHub environment setup is complete.",
+  "scope": [
+    "Keep the full verification workflow running on main.",
+    "Skip automatic staging and production deploys until DEPLOY_ENABLED=true is configured.",
+    "Allow manual workflow_dispatch deploys for intentional first launch runs.",
+    "Document the repository variable required to enable automatic deployments."
+  ],
+  "verification": [
+    "Deploy workflow keeps the verify job active for pushes to main.",
+    "Deploy jobs run when workflow_dispatch is used.",
+    "Deploy jobs run on push only when DEPLOY_ENABLED is true.",
+    "CI/CD documentation describes the gate and first-launch behavior."
+  ],
+  "completed_notes": [
+    "Added a Deployment disabled job that explains why push-to-main deployment did not run.",
+    "Gated deploy-staging behind workflow_dispatch or DEPLOY_ENABLED=true.",
+    "Documented DEPLOY_ENABLED in the CI/CD guide."
+  ]
+}

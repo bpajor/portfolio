@@ -75,6 +75,14 @@ Both staging and production deploy jobs run `deploy/compose/validate-env.sh` bef
 
 `.github/workflows/deploy.yml` runs on pushes to `main` and manually through `workflow_dispatch`.
 
+Push-to-main deployments are intentionally gated while the first infrastructure setup is in progress. Keep the repository variable `DEPLOY_ENABLED` unset or set to any value other than `true` until the VM, GitHub environments, SSH secrets, and environment `.env` files are ready.
+
+When the deployment target is ready, set this repository variable:
+
+- `DEPLOY_ENABLED`: `true`
+
+Manual `workflow_dispatch` runs are allowed even when `DEPLOY_ENABLED` is not `true`, so the first staging and production launch can be started intentionally from GitHub Actions.
+
 Flow:
 
 1. Reuse the full PR CI workflow.
