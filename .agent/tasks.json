@@ -154,6 +154,13 @@
       "priority": 22,
       "status": "completed",
       "file": ".agent/tasks/TASK-022.json"
+    },
+    {
+      "id": "023",
+      "title": "Enable Turnstile-protected public comments",
+      "priority": 23,
+      "status": "pending",
+      "file": ".agent/tasks/TASK-023.json"
     }
   ]
 }

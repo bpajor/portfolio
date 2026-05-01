@@ -1,0 +1,21 @@
+{
+  "id": "023",
+  "title": "Enable Turnstile-protected public comments",
+  "status": "pending",
+  "goal": "Re-enable anonymous public comment submission after the frontend can provide a valid Cloudflare Turnstile token.",
+  "scope": [
+    "Add a public Turnstile site key environment variable for the web app.",
+    "Render the Turnstile widget on blog post comment forms.",
+    "Submit the widget token as turnstileToken to the existing comments API.",
+    "Keep the honeypot, moderation queue, rate limit, and backend Turnstile verification in place.",
+    "Update deployment env generation and validation for the public site key.",
+    "Add E2E coverage for successful pending comment submission and failure without a token."
+  ],
+  "verification": [
+    "A real Turnstile token is required before public comment submission succeeds.",
+    "Submitted comments enter the pending moderation queue.",
+    "Approved comments render below the blog post.",
+    "The public form does not expose secrets in the client bundle.",
+    "Production release docs include the Turnstile site key and secret setup steps."
+  ]
+}

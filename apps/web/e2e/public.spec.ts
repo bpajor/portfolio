@@ -35,4 +35,12 @@ test.describe("public website", () => {
     await expect(aiContext).toBeOK();
     expect((await aiContext.json()).person.name).toBe("Blazej Pajor");
   });
+
+  test("keeps public comments read-only for the v1 release", async ({ page }) => {
+    await page.goto("/blog/designing-low-cost-production-portfolio");
+
+    await expect(page.getByRole("heading", { name: "Discussion" })).toBeVisible();
+    await expect(page.getByText(/public comments are read-only/i)).toBeVisible();
+    await expect(page.getByRole("button", { name: /submit comment/i })).toHaveCount(0);
+  });
 });

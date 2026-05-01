@@ -33,6 +33,8 @@ E2E_BASE_URL=https://staging.bpajor.dev npm run test:e2e
 
 ## Go API Tests
 
+Use Go 1.26.x for local checks. The application containers and CI use the same major toolchain, and the sqlc drift check depends on a Go 1.26-compatible toolchain.
+
 ```bash
 cd apps/api
 go test ./...

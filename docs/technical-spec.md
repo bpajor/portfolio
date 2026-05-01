@@ -8,7 +8,7 @@ The site should:
 
 - present professional identity and selected projects,
 - publish technical blog posts from an admin panel,
-- allow anonymous comments with moderation,
+- allow anonymous comments with moderation after the Turnstile frontend flow is enabled,
 - expose a secure MCP server for AI agents,
 - be optimized for SEO and Generative Engine Optimization,
 - run on GCP within a target budget of 50 PLN per month.
@@ -281,7 +281,7 @@ Fields:
 - `/blog`
   - post index.
 - `/blog/[slug]`
-  - article, comments, related posts.
+  - article, read-only comments area for V1, related posts.
 - `/contact`
   - contact information and form.
 
@@ -316,7 +316,7 @@ Public endpoints:
 - `GET /api/projects/{slug}`
 - `GET /api/posts`
 - `GET /api/posts/{slug}`
-- `POST /api/posts/{slug}/comments`
+- `POST /api/posts/{slug}/comments` (implemented in the API, hidden from the public V1 UI until Turnstile is wired on the frontend)
 - `POST /api/contact`
 
 Admin endpoints:
@@ -507,7 +507,7 @@ E2E tests:
 - Admin login.
 - Draft creation.
 - Publishing a post and verifying it appears publicly.
-- Anonymous comment submission and moderation.
+- Anonymous comment submission and moderation after the Turnstile frontend flow is enabled.
 - Contact flow.
 
 Smoke tests:
