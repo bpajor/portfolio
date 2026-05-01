@@ -161,6 +161,13 @@
       "priority": 23,
       "status": "pending",
       "file": ".agent/tasks/TASK-023.json"
+    },
+    {
+      "id": "024",
+      "title": "Move release image builds off the e2-micro VM",
+      "priority": 24,
+      "status": "pending",
+      "file": ".agent/tasks/TASK-024.json"
     }
   ]
 }
