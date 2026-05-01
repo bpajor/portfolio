@@ -138,6 +138,8 @@ docker compose --env-file .env -f deploy/compose/compose.yml up -d --build
 
 The VM should already have Docker, Docker Compose, repository checkout, and `deploy/compose/.env` configured. See `deploy/compose/README.md` and `docs/gcp-dns-deployment.md`.
 
+First-release finding: the `up -d --build` VM deploy path is not reliable on the Free-Tier-sized `e2-micro` VM. During the initial manual release, image builds consumed enough CPU and memory to make SSH unreliable even with swap. Before enabling `DEPLOY_ENABLED=true`, move image builds to GitHub Actions or another external builder and make the VM deploy only pull or load prebuilt images, run migrations, start Compose, and execute smoke checks. TASK-024 tracks this change.
+
 The GitHub-hosted deploy runner must also be able to reach the VM over SSH. In Terraform this means `ssh_source_ranges` must include the source CIDR used by the deploy runner. For a tighter setup, prefer a self-hosted runner with a stable egress IP or a future IAP-based deploy workflow. If direct SSH is closed, PR CI can still pass but staging and production deploy jobs will fail before any Compose command runs.
 
 ## GCP Access Model

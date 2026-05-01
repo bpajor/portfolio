@@ -164,6 +164,8 @@ Important cost note: a static external IP can cost money when reserved but not a
 
 `e2-micro` has limited CPU and 1 GB memory. That is acceptable for a low-traffic portfolio if the Compose stack is kept small. If builds are too heavy on the VM, build locally or in CI and deploy artifacts/images later.
 
+First-release finding: building the web, API, and MCP images directly on the `e2-micro` VM is not reliable. During the initial GCP release, `docker compose up --build` spent many minutes in `npm ci` and Go build steps, consumed enough CPU and memory to make SSH unreliable, and required a VM reset. Treat the `e2-micro` instance as a runtime target, not a build worker. The preferred deployment strategy is to build images in GitHub Actions, Cloud Shell, or another external builder, push or transfer those images, then run Compose on the VM without local build steps.
+
 ## 7. Bootstrap the VM
 
 SSH into the VM:
@@ -263,6 +265,8 @@ Start the stack:
 docker compose --env-file .env -f compose.yml up -d --build
 docker compose --env-file .env -f compose.yml ps
 ```
+
+For the first manual release, avoid building on the `e2-micro` VM if the web or Go image builds become slow enough to affect SSH. Build the images outside the VM, load or pull them on the VM, then start the stack with `--no-build`. TASK-024 tracks making this the default release path with a proper image registry.
 
 Check the API:
 
@@ -371,6 +375,8 @@ cd deploy/compose
 docker compose --env-file .env -f compose.yml up -d --build
 docker compose --env-file .env -f compose.yml ps
 ```
+
+Known release caveat: this local `--build` update path is too heavy for the `e2-micro` target and should be replaced before enabling automatic deployments. Until TASK-024 is implemented, use an external builder and deploy prebuilt images when VM-side builds stall or make SSH unreliable.
 
 Rollback to the previous commit if needed:
 

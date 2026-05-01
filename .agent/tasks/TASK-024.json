@@ -1,0 +1,24 @@
+{
+  "id": "024",
+  "title": "Move release image builds off the e2-micro VM",
+  "status": "pending",
+  "goal": "Stop building production Docker images on the low-cost e2-micro VM and make deployments run prebuilt images instead.",
+  "context": [
+    "During the first manual GCP release, docker compose up --build on the e2-micro VM stalled the machine while building the web, API, and MCP images.",
+    "The web npm ci step and Go builds consumed enough CPU and memory that SSH became unreliable even after adding swap.",
+    "The e2-micro VM is acceptable as a low-traffic runtime target, but it is not an acceptable image build target."
+  ],
+  "scope": [
+    "Build web, API, and MCP Docker images in GitHub Actions or another external builder.",
+    "Push versioned images to a registry such as GitHub Container Registry or Google Artifact Registry.",
+    "Update the production Compose deployment to reference image tags instead of local build contexts.",
+    "Keep the VM deployment path limited to docker login, docker compose pull or docker load, migrations, compose up, and smoke checks.",
+    "Preserve the current low-cost single-VM runtime model."
+  ],
+  "verification": [
+    "A deployment to staging completes without running Docker build steps on the VM.",
+    "The VM remains reachable over SSH during staging and production deploys.",
+    "Smoke checks pass after running the stack from prebuilt images.",
+    "Rollback can redeploy a previous image tag without rebuilding on the VM."
+  ]
+}
