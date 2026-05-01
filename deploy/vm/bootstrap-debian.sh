@@ -8,6 +8,7 @@ deploy_group="${DEPLOY_GROUP:-$deploy_user}"
 repo_branch="${REPO_BRANCH:-main}"
 staging_dir="${STAGING_APP_DIR:-$app_root/portfolio-staging}"
 production_dir="${PRODUCTION_APP_DIR:-$app_root/portfolio-production}"
+deploy_public_key="${DEPLOY_PUBLIC_KEY:-}"
 
 if [[ "$(id -u)" -ne 0 ]]; then
   echo "Run this script as root, for example with sudo." >&2
@@ -20,9 +21,31 @@ ensure_user() {
   fi
 }
 
+install_deploy_public_key() {
+  if [[ -z "$deploy_public_key" ]]; then
+    return
+  fi
+
+  local home_dir
+  home_dir="$(getent passwd "$deploy_user" | cut -d: -f6)"
+  if [[ -z "$home_dir" ]]; then
+    echo "Could not resolve home directory for $deploy_user." >&2
+    exit 1
+  fi
+
+  install -d -m 0700 -o "$deploy_user" -g "$deploy_group" "$home_dir/.ssh"
+  touch "$home_dir/.ssh/authorized_keys"
+  chmod 0600 "$home_dir/.ssh/authorized_keys"
+  chown "$deploy_user:$deploy_group" "$home_dir/.ssh/authorized_keys"
+
+  if ! grep -qxF "$deploy_public_key" "$home_dir/.ssh/authorized_keys"; then
+    printf '%s\n' "$deploy_public_key" >> "$home_dir/.ssh/authorized_keys"
+  fi
+}
+
 install_base_packages() {
   apt-get update
-  apt-get install -y ca-certificates curl gnupg git openssl lsb-release
+  apt-get install -y ca-certificates curl gnupg git openssh-client openssl lsb-release
 }
 
 install_gcloud_cli() {
@@ -88,6 +111,7 @@ prepare_env_file() {
 }
 
 ensure_user
+install_deploy_public_key
 install_base_packages
 install_gcloud_cli
 install_docker
@@ -107,6 +131,6 @@ Production app dir: $production_dir
 
 Next steps:
 1. Edit both deploy/compose/.env files.
-2. Add GitHub environment secrets APP_DIR, SSH_HOST, SSH_USER, SSH_PRIVATE_KEY, SSH_PORT, SSH_KNOWN_HOSTS.
+2. Add GitHub environment secrets APP_DIR, SSH_HOST, SSH_USER, SSH_PRIVATE_KEY, SSH_PORT, SSH_KNOWN_HOSTS, SSH_FINGERPRINT.
 3. Log out and back in if you need the deploy user to pick up docker group membership.
 EOF

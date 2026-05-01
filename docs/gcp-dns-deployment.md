@@ -63,6 +63,8 @@ backup_bucket_name = "bpajor-portfolio-backups-unique-suffix"
 
 For the lowest-cost Free Tier setup, keep the VM in a supported US Free Tier region. If the domain or audience later needs EU latency, move to an EU region only after checking the recurring cost.
 
+The Terraform module currently enforces the initial low-cost shape: Free-Tier-friendly US regions, `e2-micro`, `pd-standard`, and a boot disk no larger than 30 GB. Treat any relaxation of those validations as an explicit cost decision.
+
 ## 1. Project Setup
 
 Create or select a dedicated GCP project in the Google Cloud Console, link billing, and authenticate locally:
@@ -144,6 +146,14 @@ Direct SSH is not opened unless `ssh_source_ranges` contains at least one CIDR. 
 ssh_source_ranges = ["YOUR_PUBLIC_IP/32"]
 ```
 
+GitHub-hosted Actions deployment also needs SSH reachability to the VM. Before enabling `DEPLOY_ENABLED=true`, either:
+
+- set `ssh_source_ranges` to include the deploy runner source CIDR,
+- run deployment from a self-hosted runner with a stable egress IP and allow that IP,
+- or keep `DEPLOY_ENABLED` disabled and deploy manually from the VM until an IAP-based deploy workflow is added.
+
+Opening SSH to `0.0.0.0/0` is not recommended for the long term. If you temporarily do it for first launch, keep key-only auth, verify `SSH_FINGERPRINT`, and tighten the firewall immediately after deployment.
+
 ## 5. Network and Static IP
 
 The Terraform stack reserves the static IP and attaches it to the VM. Use the `static_ip` output in Cloudflare DNS.
@@ -166,8 +176,9 @@ $(terraform output -raw ssh_command)
 The repository contains a bootstrap script for Debian 12 VMs. It installs base packages, Docker Engine, Docker Compose, creates a deploy user, clones separate staging and production working copies, and creates initial `.env` files:
 
 ```bash
+ssh-keygen -t ed25519 -a 200 -f ~/.ssh/portfolio-github-actions -C "github-actions portfolio deploy"
 curl -fsSL https://raw.githubusercontent.com/bpajor/portfolio/main/deploy/vm/bootstrap-debian.sh -o bootstrap-debian.sh
-sudo bash bootstrap-debian.sh
+sudo DEPLOY_PUBLIC_KEY="$(cat ~/.ssh/portfolio-github-actions.pub)" bash bootstrap-debian.sh
 ```
 
 Log out and back in if your user needs fresh Docker group membership, then verify:
@@ -183,6 +194,15 @@ Default directories:
 - production: `/opt/portfolio-production`
 
 Edit both `.env` files before the first deploy.
+
+Capture SSH host verification values for GitHub environment secrets:
+
+```bash
+ssh-keyscan -p 22 "$(terraform output -raw static_ip)"
+ssh-keyscan -p 22 "$(terraform output -raw static_ip)" 2>/dev/null | ssh-keygen -l -f - | awk '{print $2}' | head -n 1
+```
+
+Use the first command output as `SSH_KNOWN_HOSTS` and the second command output as `SSH_FINGERPRINT`.
 
 Generate initial environment files with strong random secrets:
 
