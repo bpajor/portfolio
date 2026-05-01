@@ -1,13 +1,13 @@
 # syntax=docker/dockerfile:1.7
 
-FROM node:25-alpine AS deps
+FROM node:22-alpine AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
 COPY apps/web/package.json apps/web/package.json
 COPY packages/shared/package.json packages/shared/package.json
 RUN npm ci
 
-FROM node:25-alpine AS builder
+FROM node:22-alpine AS builder
 WORKDIR /app
 ARG NEXT_PUBLIC_SITE_URL=http://localhost:3000
 ARG NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8080
@@ -21,7 +21,7 @@ COPY apps/web ./apps/web
 COPY packages ./packages
 RUN npm --workspace apps/web run build
 
-FROM node:25-alpine AS runner
+FROM node:22-alpine AS runner
 WORKDIR /app
 ARG NEXT_PUBLIC_SITE_URL=http://localhost:3000
 ARG NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8080

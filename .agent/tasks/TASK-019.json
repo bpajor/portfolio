@@ -1,0 +1,21 @@
+{
+  "id": "019",
+  "title": "Stabilize dependency updates before release",
+  "status": "completed",
+  "goal": "Keep the pre-release runtime and dependency update surface predictable after the first Dependabot wave.",
+  "scope": [
+    "Align the production web Docker image with the Node LTS version used by CI.",
+    "Prevent broad pre-release major updates from npm, GitHub Actions, Terraform, and the web Node image.",
+    "Keep local review worktrees out of git status."
+  ],
+  "verification": [
+    "Dependabot configuration parses as valid YAML.",
+    "Web Dockerfile uses Node 22 in deps, builder, and runner stages.",
+    "Git status no longer shows local .worktrees review artifacts."
+  ],
+  "completed_notes": [
+    "Pinned apps/web Docker stages back to node:22-alpine to match CI and avoid a non-LTS production runtime jump.",
+    "Added Dependabot ignore rules for semver-major updates on the highest-risk ecosystems before initial release.",
+    "Ignored local .worktrees directories used for PR review."
+  ]
+}

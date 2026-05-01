@@ -5,6 +5,7 @@ dist/
 coverage/
 artifacts/
 .tools/
+.worktrees/
 .vscode/
 
 .env
