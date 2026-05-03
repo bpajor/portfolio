@@ -153,7 +153,16 @@ Recommended GCP setup:
 - Create a dedicated OS Login or VM SSH deploy user with access only to the portfolio VM.
 - Do not store broad GCP owner/editor keys in GitHub secrets.
 - Keep VM firewall rules limited to SSH from trusted source ranges and public HTTP/HTTPS.
-- If Terraform is later moved into CI, use Workload Identity Federation with a narrowly scoped service account instead of a JSON key.
+- Run Terraform from GitHub with Workload Identity Federation and a narrowly scoped service account instead of a JSON key.
+
+Terraform plan runs in a separate manual GitHub Actions workflow named `Terraform Plan`. It requires a dedicated GCS remote state bucket and Workload Identity Federation. The workflow prints the plan in the Actions log, writes it to the run summary, and uploads the full plan as an artifact. It does not run `terraform apply`.
+
+Before enabling any Terraform apply workflow:
+
+- migrate local Terraform state to the GCS backend,
+- configure the GitHub `terraform` environment variables and secrets documented in `infra/gcp/README.md`,
+- run `Terraform Plan` and review the plan output in GitHub,
+- keep production apply behind a protected GitHub environment approval.
 
 Possible future Terraform CI service account roles:
 
@@ -161,7 +170,7 @@ Possible future Terraform CI service account roles:
 - `roles/dns.admin` only if DNS zones are managed from CI.
 - `roles/iam.serviceAccountUser` only for attaching service accounts to managed resources.
 
-For now, Terraform should continue to be applied manually from a trusted local machine until the infrastructure workflow is explicitly added.
+For now, Terraform apply should continue to be run manually from a trusted local machine until an apply workflow is explicitly added and protected. The GitHub workflow only publishes reviewable plan output.
 
 ## Rollback
 
