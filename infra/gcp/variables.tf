@@ -86,7 +86,7 @@ variable "boot_disk_type" {
 }
 
 variable "ssh_source_ranges" {
-  description = "CIDR ranges allowed to SSH directly to the VM. Required for GitHub-hosted deploys unless you use a self-hosted runner, IAP, or manual VM deploys."
+  description = "CIDR ranges allowed to SSH directly to the VM. Keep empty when GitHub Actions deploys through IAP."
   type        = list(string)
   default     = []
 
@@ -134,6 +134,58 @@ variable "backup_bucket_name" {
   validation {
     condition     = can(regex("^[a-z0-9][a-z0-9._-]{1,61}[a-z0-9]$", var.backup_bucket_name)) && !startswith(var.backup_bucket_name, "gs://")
     error_message = "backup_bucket_name must be a raw globally unique bucket name without gs://, using lowercase letters, numbers, dots, underscores, or dashes."
+  }
+}
+
+variable "enable_github_iap_deploy" {
+  description = "Whether to create the GitHub Actions deploy service account and IAM bindings for IAP-based VM deployment."
+  type        = bool
+  default     = false
+}
+
+variable "github_actions_repository" {
+  description = "GitHub repository allowed to impersonate the deploy service account through Workload Identity Federation."
+  type        = string
+  default     = "bpajor/portfolio"
+
+  validation {
+    condition     = can(regex("^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$", var.github_actions_repository))
+    error_message = "github_actions_repository must use owner/repo format, for example bpajor/portfolio."
+  }
+}
+
+variable "iap_ssh_source_ranges" {
+  description = "IPv4 CIDR ranges used by Google IAP TCP forwarding for SSH."
+  type        = list(string)
+  default     = ["35.235.240.0/20"]
+
+  validation {
+    condition = length(var.iap_ssh_source_ranges) > 0 && alltrue([
+      for cidr in var.iap_ssh_source_ranges : can(cidrhost(cidr, 0))
+    ])
+    error_message = "iap_ssh_source_ranges must contain at least one valid CIDR range."
+  }
+}
+
+variable "github_actions_workload_identity_pool_id" {
+  description = "Existing Workload Identity Pool ID used by GitHub Actions."
+  type        = string
+  default     = "github-actions"
+
+  validation {
+    condition     = can(regex("^[a-z][a-z0-9-]{2,30}$", var.github_actions_workload_identity_pool_id))
+    error_message = "github_actions_workload_identity_pool_id must be a valid workload identity pool ID."
+  }
+}
+
+variable "github_actions_workload_identity_provider_id" {
+  description = "Existing Workload Identity Provider ID used by GitHub Actions."
+  type        = string
+  default     = "github"
+
+  validation {
+    condition     = can(regex("^[a-z][a-z0-9-]{2,30}$", var.github_actions_workload_identity_provider_id))
+    error_message = "github_actions_workload_identity_provider_id must be a valid workload identity provider ID."
   }
 }
 

@@ -97,8 +97,10 @@ Terraform creates:
 - `e2-micro` VM with Debian 12,
 - OS Login project metadata,
 - public firewall rule only for ports `80` and `443`,
+- SSH firewall rule for Google IAP TCP forwarding,
 - optional direct SSH firewall rule when `ssh_source_ranges` is set,
 - VM service account,
+- optional GitHub Actions deploy service account for IAP,
 - Cloud Storage backup bucket with lifecycle deletion,
 - optional billing budget when `enable_billing_budget = true`.
 
@@ -146,13 +148,15 @@ Direct SSH is not opened unless `ssh_source_ranges` contains at least one CIDR. 
 ssh_source_ranges = ["YOUR_PUBLIC_IP/32"]
 ```
 
-GitHub-hosted Actions deployment also needs SSH reachability to the VM. Before enabling `DEPLOY_ENABLED=true`, either:
+GitHub-hosted Actions deployment should use IAP instead of direct SSH. Enable the deploy service account in Terraform:
 
-- set `ssh_source_ranges` to include the deploy runner source CIDR,
-- run deployment from a self-hosted runner with a stable egress IP and allow that IP,
-- or keep `DEPLOY_ENABLED` disabled and deploy manually from the VM until an IAP-based deploy workflow is added.
+```hcl
+enable_github_iap_deploy = true
+```
 
-Opening SSH to `0.0.0.0/0` is not recommended for the long term. If you temporarily do it for first launch, keep key-only auth, verify `SSH_FINGERPRINT`, and tighten the firewall immediately after deployment.
+Terraform always opens port `22` to the Google-owned IAP TCP forwarding source range `35.235.240.0/20`. With IAP deploy enabled, GitHub Actions does not need `ssh_source_ranges` to include runner IPs.
+
+Opening SSH to `0.0.0.0/0` is not recommended. If you temporarily do it for emergency debugging, keep key-only auth, verify the host fingerprint manually, and tighten the firewall immediately after.
 
 ## 5. Network and Static IP
 
@@ -178,9 +182,8 @@ $(terraform output -raw ssh_command)
 The repository contains a bootstrap script for Debian 12 VMs. It installs base packages, Docker Engine, Docker Compose, creates a deploy user, clones separate staging and production working copies, and creates initial `.env` files:
 
 ```bash
-ssh-keygen -t ed25519 -a 200 -f ~/.ssh/portfolio-github-actions -C "github-actions portfolio deploy"
 curl -fsSL https://raw.githubusercontent.com/bpajor/portfolio/main/deploy/vm/bootstrap-debian.sh -o bootstrap-debian.sh
-sudo DEPLOY_PUBLIC_KEY="$(cat ~/.ssh/portfolio-github-actions.pub)" bash bootstrap-debian.sh
+sudo bash bootstrap-debian.sh
 ```
 
 Log out and back in if your user needs fresh Docker group membership, then verify:
@@ -197,14 +200,14 @@ Default directories:
 
 Edit both `.env` files before the first deploy.
 
-Capture SSH host verification values for GitHub environment secrets:
+GitHub Actions no longer needs SSH host-key secrets for deployment. It authenticates to GCP through Workload Identity Federation and reaches the VM through IAP. Configure these GitHub environment values after Terraform apply:
 
-```bash
-ssh-keyscan -p 22 "$(terraform output -raw static_ip)"
-ssh-keyscan -p 22 "$(terraform output -raw static_ip)" 2>/dev/null | ssh-keygen -l -f - | awk '{print $2}' | head -n 1
-```
-
-Use the first command output as `SSH_KNOWN_HOSTS` and the second command output as `SSH_FINGERPRINT`.
+- secret `APP_DIR`: `/opt/portfolio-staging` or `/opt/portfolio-production`
+- secret `GCP_WORKLOAD_IDENTITY_PROVIDER`: `terraform output -raw github_workload_identity_provider`
+- secret `GCP_DEPLOY_SERVICE_ACCOUNT`: `terraform output -raw github_deploy_service_account`
+- var `GCP_PROJECT_ID`: your project ID
+- var `GCP_VM_NAME`: `terraform output -raw vm_name`
+- var `GCP_VM_ZONE`: `terraform output -raw vm_zone`
 
 Generate initial environment files with strong random secrets:
 
@@ -266,7 +269,7 @@ docker compose --env-file .env -f compose.yml up -d --build
 docker compose --env-file .env -f compose.yml ps
 ```
 
-For the first manual release and GitHub Actions deployments, avoid building on the `e2-micro` VM. Build the images outside the VM, load or pull them on the VM, then start the stack with `--no-build`. The current GitHub deploy workflow uses this prebuilt-image path.
+For the first manual release and GitHub Actions deployments, avoid building on the `e2-micro` VM. Build the images outside the VM, load or pull them on the VM, then start the stack with `--no-build`. The current GitHub deploy workflow builds images on the runner, transfers them through IAP, and uses this prebuilt-image path.
 
 Check the API:
 
@@ -403,7 +406,7 @@ Before pointing the real domain at the VM:
 
 - Billing budget exists and sends alerts.
 - VM is `e2-micro` in a Free Tier eligible US region unless you intentionally accepted EU-region cost.
-- Only ports `80` and `443` are open to `0.0.0.0/0`.
+- Ports `80` and `443` are open only to Cloudflare IPv4 ranges after proxy mode is enabled.
 - SSH is restricted to your IP, OS Login, or IAP.
 - PostgreSQL has no public port.
 - `.env` contains strong unique secrets.

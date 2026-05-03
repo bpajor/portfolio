@@ -40,18 +40,24 @@ jobs:
       name: staging
       url: ${{ vars.BASE_URL }}
     steps:
-      - name: Validate staging deployment secrets
+      - name: Validate staging deployment configuration
         env:
-          SSH_HOST: ${{ secrets.SSH_HOST }}
-          SSH_USER: ${{ secrets.SSH_USER }}
-          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-          SSH_PORT: ${{ secrets.SSH_PORT }}
-          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
-          SSH_FINGERPRINT: ${{ secrets.SSH_FINGERPRINT }}
           APP_DIR: ${{ secrets.APP_DIR }}
+          GCP_WORKLOAD_IDENTITY_PROVIDER: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          GCP_DEPLOY_SERVICE_ACCOUNT: ${{ secrets.GCP_DEPLOY_SERVICE_ACCOUNT }}
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+          GCP_VM_NAME: ${{ vars.GCP_VM_NAME }}
+          GCP_VM_ZONE: ${{ vars.GCP_VM_ZONE }}
         run: |
           set -euo pipefail
-          for name in SSH_HOST SSH_USER SSH_PRIVATE_KEY SSH_PORT SSH_KNOWN_HOSTS SSH_FINGERPRINT APP_DIR; do
+          for name in \
+            APP_DIR \
+            GCP_WORKLOAD_IDENTITY_PROVIDER \
+            GCP_DEPLOY_SERVICE_ACCOUNT \
+            GCP_PROJECT_ID \
+            GCP_VM_NAME \
+            GCP_VM_ZONE
+          do
             value="${!name:-}"
             if [ -z "$value" ]; then
               echo "::error::$name is required in the staging environment"
@@ -91,60 +97,102 @@ jobs:
             | gzip > "$RELEASE_IMAGE_ARCHIVE"
           ls -lh "$RELEASE_IMAGE_ARCHIVE"
 
-      - name: Upload staging images to VM
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_DEPLOY_SERVICE_ACCOUNT }}
+
+      - name: Setup Google Cloud CLI
+        uses: google-github-actions/setup-gcloud@v3
+
+      - name: Upload staging images through IAP
         env:
-          SSH_HOST: ${{ secrets.SSH_HOST }}
-          SSH_USER: ${{ secrets.SSH_USER }}
-          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-          SSH_PORT: ${{ secrets.SSH_PORT }}
-          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+          GCP_VM_NAME: ${{ vars.GCP_VM_NAME }}
+          GCP_VM_ZONE: ${{ vars.GCP_VM_ZONE }}
           LOCAL_RELEASE_IMAGE_ARCHIVE: /tmp/portfolio-staging-images.tar.gz
+          LOCAL_DEPLOY_SCRIPT: /tmp/portfolio-deploy-staging.sh
           REMOTE_RELEASE_IMAGE_ARCHIVE: /tmp/portfolio-staging-${{ github.sha }}.tar.gz
+          REMOTE_DEPLOY_SCRIPT: /tmp/portfolio-deploy-staging-${{ github.sha }}.sh
         run: |
           set -euo pipefail
-          mkdir -p ~/.ssh
-          chmod 700 ~/.ssh
-          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
-          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
-          chmod 600 ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/known_hosts
-          scp \
-            -i ~/.ssh/deploy_key \
-            -P "$SSH_PORT" \
-            -o StrictHostKeyChecking=yes \
-            -o UserKnownHostsFile=~/.ssh/known_hosts \
+          cat > "$LOCAL_DEPLOY_SCRIPT" <<'SCRIPT'
+          #!/usr/bin/env bash
+          set -euo pipefail
+
+          : "${APP_DIR:?APP_DIR is required}"
+          : "${RELEASE_IMAGE_ARCHIVE:?RELEASE_IMAGE_ARCHIVE is required}"
+          : "${DEPLOY_MODE:?DEPLOY_MODE is required}"
+          : "${RUN_BACKUP:?RUN_BACKUP is required}"
+
+          cleanup() {
+            rm -f "$RELEASE_IMAGE_ARCHIVE" "$0"
+          }
+          trap cleanup EXIT
+
+          chmod 0644 "$RELEASE_IMAGE_ARCHIVE"
+
+          sudo -u portfolio env \
+            APP_DIR="$APP_DIR" \
+            RELEASE_IMAGE_ARCHIVE="$RELEASE_IMAGE_ARCHIVE" \
+            DEPLOY_MODE="$DEPLOY_MODE" \
+            RUN_BACKUP="$RUN_BACKUP" \
+            bash <<'PORTFOLIO_DEPLOY'
+          set -euo pipefail
+          cd "$APP_DIR"
+          git fetch origin main
+          git checkout main
+          git pull --ff-only origin main
+          cd deploy/compose
+          ./validate-env.sh "$DEPLOY_MODE" .env
+          if [ "$RUN_BACKUP" = "true" ]; then
+            ./backup-postgres.sh || true
+          fi
+          docker load -i "$RELEASE_IMAGE_ARCHIVE"
+          docker compose --env-file .env -f compose.yml up -d --no-build
+          docker compose --env-file .env -f compose.yml ps
+          PORTFOLIO_DEPLOY
+          SCRIPT
+
+          gcloud compute scp \
+            --project "$GCP_PROJECT_ID" \
+            --zone "$GCP_VM_ZONE" \
+            --tunnel-through-iap \
+            --quiet \
             "$LOCAL_RELEASE_IMAGE_ARCHIVE" \
-            "${SSH_USER}@${SSH_HOST}:${REMOTE_RELEASE_IMAGE_ARCHIVE}"
+            "${GCP_VM_NAME}:${REMOTE_RELEASE_IMAGE_ARCHIVE}"
 
-      - name: Deploy staging over SSH
-        uses: appleboy/ssh-action@v1.2.5
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: ${{ secrets.SSH_PORT }}
-          fingerprint: ${{ secrets.SSH_FINGERPRINT }}
-          script: |
-            set -euo pipefail
-            remote_release_image_archive="/tmp/portfolio-staging-${{ github.sha }}.tar.gz"
-            cd "${{ secrets.APP_DIR }}"
-            git fetch origin main
-            git checkout main
-            git pull --ff-only origin main
-            cd deploy/compose
-            ./validate-env.sh staging .env
-            docker load -i "$remote_release_image_archive"
-            docker compose --env-file .env -f compose.yml up -d --no-build
-            docker compose --env-file .env -f compose.yml ps
-            rm -f "$remote_release_image_archive"
+          gcloud compute scp \
+            --project "$GCP_PROJECT_ID" \
+            --zone "$GCP_VM_ZONE" \
+            --tunnel-through-iap \
+            --quiet \
+            "$LOCAL_DEPLOY_SCRIPT" \
+            "${GCP_VM_NAME}:${REMOTE_DEPLOY_SCRIPT}"
 
-      - name: Open staging SSH tunnel
+      - name: Deploy staging through IAP
         env:
-          SSH_HOST: ${{ secrets.SSH_HOST }}
-          SSH_USER: ${{ secrets.SSH_USER }}
-          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-          SSH_PORT: ${{ secrets.SSH_PORT }}
-          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+          APP_DIR: ${{ secrets.APP_DIR }}
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+          GCP_VM_NAME: ${{ vars.GCP_VM_NAME }}
+          GCP_VM_ZONE: ${{ vars.GCP_VM_ZONE }}
+          REMOTE_RELEASE_IMAGE_ARCHIVE: /tmp/portfolio-staging-${{ github.sha }}.tar.gz
+          REMOTE_DEPLOY_SCRIPT: /tmp/portfolio-deploy-staging-${{ github.sha }}.sh
+        run: |
+          set -euo pipefail
+          gcloud compute ssh "$GCP_VM_NAME" \
+            --project "$GCP_PROJECT_ID" \
+            --zone "$GCP_VM_ZONE" \
+            --tunnel-through-iap \
+            --quiet \
+            --command "chmod +x '$REMOTE_DEPLOY_SCRIPT' && APP_DIR='$APP_DIR' RELEASE_IMAGE_ARCHIVE='$REMOTE_RELEASE_IMAGE_ARCHIVE' DEPLOY_MODE='staging' RUN_BACKUP='false' '$REMOTE_DEPLOY_SCRIPT'"
+
+      - name: Open staging IAP tunnel
+        env:
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+          GCP_VM_NAME: ${{ vars.GCP_VM_NAME }}
+          GCP_VM_ZONE: ${{ vars.GCP_VM_ZONE }}
           STAGING_TUNNEL_LOCAL_PORT: ${{ vars.STAGING_TUNNEL_LOCAL_PORT }}
           STAGING_TUNNEL_TARGET_HOST: ${{ vars.STAGING_TUNNEL_TARGET_HOST }}
           STAGING_TUNNEL_TARGET_PORT: ${{ vars.STAGING_TUNNEL_TARGET_PORT }}
@@ -154,22 +202,15 @@ jobs:
           target_host="${STAGING_TUNNEL_TARGET_HOST:-127.0.0.1}"
           target_port="${STAGING_TUNNEL_TARGET_PORT:-18080}"
 
-          mkdir -p ~/.ssh
-          chmod 700 ~/.ssh
-          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
-          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
-          chmod 600 ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/known_hosts
-
-          ssh -fN \
-            -i ~/.ssh/deploy_key \
-            -p "$SSH_PORT" \
+          gcloud compute ssh "$GCP_VM_NAME" \
+            --project "$GCP_PROJECT_ID" \
+            --zone "$GCP_VM_ZONE" \
+            --tunnel-through-iap \
+            --quiet \
+            -- -fN \
             -o ExitOnForwardFailure=yes \
-            -o StrictHostKeyChecking=yes \
-            -o UserKnownHostsFile=~/.ssh/known_hosts \
             -o ServerAliveInterval=30 \
-            -L "${local_port}:${target_host}:${target_port}" \
-            "${SSH_USER}@${SSH_HOST}"
+            -L "${local_port}:${target_host}:${target_port}"
 
           echo "STAGING_BASE_URL=http://127.0.0.1:${local_port}" >> "$GITHUB_ENV"
 
@@ -222,18 +263,24 @@ jobs:
       name: production
       url: ${{ vars.BASE_URL }}
     steps:
-      - name: Validate production deployment secrets
+      - name: Validate production deployment configuration
         env:
-          SSH_HOST: ${{ secrets.SSH_HOST }}
-          SSH_USER: ${{ secrets.SSH_USER }}
-          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-          SSH_PORT: ${{ secrets.SSH_PORT }}
-          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
-          SSH_FINGERPRINT: ${{ secrets.SSH_FINGERPRINT }}
           APP_DIR: ${{ secrets.APP_DIR }}
+          GCP_WORKLOAD_IDENTITY_PROVIDER: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          GCP_DEPLOY_SERVICE_ACCOUNT: ${{ secrets.GCP_DEPLOY_SERVICE_ACCOUNT }}
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+          GCP_VM_NAME: ${{ vars.GCP_VM_NAME }}
+          GCP_VM_ZONE: ${{ vars.GCP_VM_ZONE }}
         run: |
           set -euo pipefail
-          for name in SSH_HOST SSH_USER SSH_PRIVATE_KEY SSH_PORT SSH_KNOWN_HOSTS SSH_FINGERPRINT APP_DIR; do
+          for name in \
+            APP_DIR \
+            GCP_WORKLOAD_IDENTITY_PROVIDER \
+            GCP_DEPLOY_SERVICE_ACCOUNT \
+            GCP_PROJECT_ID \
+            GCP_VM_NAME \
+            GCP_VM_ZONE
+          do
             value="${!name:-}"
             if [ -z "$value" ]; then
               echo "::error::$name is required in the production environment"
@@ -273,53 +320,96 @@ jobs:
             | gzip > "$RELEASE_IMAGE_ARCHIVE"
           ls -lh "$RELEASE_IMAGE_ARCHIVE"
 
-      - name: Upload production images to VM
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_DEPLOY_SERVICE_ACCOUNT }}
+
+      - name: Setup Google Cloud CLI
+        uses: google-github-actions/setup-gcloud@v3
+
+      - name: Upload production images through IAP
         env:
-          SSH_HOST: ${{ secrets.SSH_HOST }}
-          SSH_USER: ${{ secrets.SSH_USER }}
-          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-          SSH_PORT: ${{ secrets.SSH_PORT }}
-          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+          GCP_VM_NAME: ${{ vars.GCP_VM_NAME }}
+          GCP_VM_ZONE: ${{ vars.GCP_VM_ZONE }}
           LOCAL_RELEASE_IMAGE_ARCHIVE: /tmp/portfolio-production-images.tar.gz
+          LOCAL_DEPLOY_SCRIPT: /tmp/portfolio-deploy-production.sh
           REMOTE_RELEASE_IMAGE_ARCHIVE: /tmp/portfolio-production-${{ github.sha }}.tar.gz
+          REMOTE_DEPLOY_SCRIPT: /tmp/portfolio-deploy-production-${{ github.sha }}.sh
         run: |
           set -euo pipefail
-          mkdir -p ~/.ssh
-          chmod 700 ~/.ssh
-          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
-          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
-          chmod 600 ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/known_hosts
-          scp \
-            -i ~/.ssh/deploy_key \
-            -P "$SSH_PORT" \
-            -o StrictHostKeyChecking=yes \
-            -o UserKnownHostsFile=~/.ssh/known_hosts \
-            "$LOCAL_RELEASE_IMAGE_ARCHIVE" \
-            "${SSH_USER}@${SSH_HOST}:${REMOTE_RELEASE_IMAGE_ARCHIVE}"
+          cat > "$LOCAL_DEPLOY_SCRIPT" <<'SCRIPT'
+          #!/usr/bin/env bash
+          set -euo pipefail
 
-      - name: Deploy production over SSH
-        uses: appleboy/ssh-action@v1.2.5
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: ${{ secrets.SSH_PORT }}
-          fingerprint: ${{ secrets.SSH_FINGERPRINT }}
-          script: |
-            set -euo pipefail
-            remote_release_image_archive="/tmp/portfolio-production-${{ github.sha }}.tar.gz"
-            cd "${{ secrets.APP_DIR }}"
-            git fetch origin main
-            git checkout main
-            git pull --ff-only origin main
-            cd deploy/compose
-            ./validate-env.sh production .env
+          : "${APP_DIR:?APP_DIR is required}"
+          : "${RELEASE_IMAGE_ARCHIVE:?RELEASE_IMAGE_ARCHIVE is required}"
+          : "${DEPLOY_MODE:?DEPLOY_MODE is required}"
+          : "${RUN_BACKUP:?RUN_BACKUP is required}"
+
+          cleanup() {
+            rm -f "$RELEASE_IMAGE_ARCHIVE" "$0"
+          }
+          trap cleanup EXIT
+
+          chmod 0644 "$RELEASE_IMAGE_ARCHIVE"
+
+          sudo -u portfolio env \
+            APP_DIR="$APP_DIR" \
+            RELEASE_IMAGE_ARCHIVE="$RELEASE_IMAGE_ARCHIVE" \
+            DEPLOY_MODE="$DEPLOY_MODE" \
+            RUN_BACKUP="$RUN_BACKUP" \
+            bash <<'PORTFOLIO_DEPLOY'
+          set -euo pipefail
+          cd "$APP_DIR"
+          git fetch origin main
+          git checkout main
+          git pull --ff-only origin main
+          cd deploy/compose
+          ./validate-env.sh "$DEPLOY_MODE" .env
+          if [ "$RUN_BACKUP" = "true" ]; then
             ./backup-postgres.sh || true
-            docker load -i "$remote_release_image_archive"
-            docker compose --env-file .env -f compose.yml up -d --no-build
-            docker compose --env-file .env -f compose.yml ps
-            rm -f "$remote_release_image_archive"
+          fi
+          docker load -i "$RELEASE_IMAGE_ARCHIVE"
+          docker compose --env-file .env -f compose.yml up -d --no-build
+          docker compose --env-file .env -f compose.yml ps
+          PORTFOLIO_DEPLOY
+          SCRIPT
+
+          gcloud compute scp \
+            --project "$GCP_PROJECT_ID" \
+            --zone "$GCP_VM_ZONE" \
+            --tunnel-through-iap \
+            --quiet \
+            "$LOCAL_RELEASE_IMAGE_ARCHIVE" \
+            "${GCP_VM_NAME}:${REMOTE_RELEASE_IMAGE_ARCHIVE}"
+
+          gcloud compute scp \
+            --project "$GCP_PROJECT_ID" \
+            --zone "$GCP_VM_ZONE" \
+            --tunnel-through-iap \
+            --quiet \
+            "$LOCAL_DEPLOY_SCRIPT" \
+            "${GCP_VM_NAME}:${REMOTE_DEPLOY_SCRIPT}"
+
+      - name: Deploy production through IAP
+        env:
+          APP_DIR: ${{ secrets.APP_DIR }}
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+          GCP_VM_NAME: ${{ vars.GCP_VM_NAME }}
+          GCP_VM_ZONE: ${{ vars.GCP_VM_ZONE }}
+          REMOTE_RELEASE_IMAGE_ARCHIVE: /tmp/portfolio-production-${{ github.sha }}.tar.gz
+          REMOTE_DEPLOY_SCRIPT: /tmp/portfolio-deploy-production-${{ github.sha }}.sh
+        run: |
+          set -euo pipefail
+          gcloud compute ssh "$GCP_VM_NAME" \
+            --project "$GCP_PROJECT_ID" \
+            --zone "$GCP_VM_ZONE" \
+            --tunnel-through-iap \
+            --quiet \
+            --command "chmod +x '$REMOTE_DEPLOY_SCRIPT' && APP_DIR='$APP_DIR' RELEASE_IMAGE_ARCHIVE='$REMOTE_RELEASE_IMAGE_ARCHIVE' DEPLOY_MODE='production' RUN_BACKUP='true' '$REMOTE_DEPLOY_SCRIPT'"
 
       - name: Production smoke checks
         env:

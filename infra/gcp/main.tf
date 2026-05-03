@@ -14,6 +14,7 @@ locals {
 resource "google_project_service" "required" {
   for_each = toset([
     "compute.googleapis.com",
+    "iap.googleapis.com",
     "storage.googleapis.com",
     "cloudbilling.googleapis.com",
     "billingbudgets.googleapis.com",
@@ -83,12 +84,69 @@ resource "google_compute_firewall" "allow_ssh_admin" {
   target_tags   = [local.web_tag]
 }
 
+resource "google_compute_firewall" "allow_ssh_iap" {
+  name        = "${var.name_prefix}-allow-ssh-iap"
+  network     = google_compute_network.main.name
+  description = "Allow SSH only through Google IAP TCP forwarding."
+  direction   = "INGRESS"
+
+  allow {
+    protocol = "tcp"
+    ports    = ["22"]
+  }
+
+  source_ranges = var.iap_ssh_source_ranges
+  target_tags   = [local.web_tag]
+}
+
 resource "google_service_account" "vm" {
   account_id   = local.service_account_name
   display_name = "Portfolio VM service account"
   description  = "Least-purpose service account for the single-VM portfolio deployment."
 
   depends_on = [google_project_service.required]
+}
+
+resource "google_service_account" "github_deploy" {
+  count = var.enable_github_iap_deploy ? 1 : 0
+
+  account_id   = "${var.name_prefix}-github-deploy"
+  display_name = "Portfolio GitHub deploy service account"
+  description  = "GitHub Actions service account for IAP-based VM deployment."
+
+  depends_on = [google_project_service.required]
+}
+
+resource "google_project_iam_member" "github_deploy_compute_viewer" {
+  count = var.enable_github_iap_deploy ? 1 : 0
+
+  project = var.project_id
+  role    = "roles/compute.viewer"
+  member  = "serviceAccount:${google_service_account.github_deploy[0].email}"
+}
+
+resource "google_project_iam_member" "github_deploy_iap_tunnel" {
+  count = var.enable_github_iap_deploy ? 1 : 0
+
+  project = var.project_id
+  role    = "roles/iap.tunnelResourceAccessor"
+  member  = "serviceAccount:${google_service_account.github_deploy[0].email}"
+}
+
+resource "google_project_iam_member" "github_deploy_os_admin" {
+  count = var.enable_github_iap_deploy ? 1 : 0
+
+  project = var.project_id
+  role    = "roles/compute.osAdminLogin"
+  member  = "serviceAccount:${google_service_account.github_deploy[0].email}"
+}
+
+resource "google_service_account_iam_member" "github_deploy_wif" {
+  count = var.enable_github_iap_deploy ? 1 : 0
+
+  service_account_id = google_service_account.github_deploy[0].name
+  role               = "roles/iam.workloadIdentityUser"
+  member             = "principalSet://iam.googleapis.com/projects/${data.google_project.current.number}/locations/global/workloadIdentityPools/${var.github_actions_workload_identity_pool_id}/attribute.repository/${var.github_actions_repository}"
 }
 
 resource "google_storage_bucket" "backups" {
@@ -168,6 +226,7 @@ resource "google_compute_instance" "web" {
 
   depends_on = [
     google_compute_firewall.allow_web,
+    google_compute_firewall.allow_ssh_iap,
     google_compute_project_metadata_item.os_login,
     google_storage_bucket_iam_member.vm_backup_writer,
   ]

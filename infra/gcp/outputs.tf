@@ -23,9 +23,24 @@ output "vm_service_account" {
   value       = google_service_account.vm.email
 }
 
+output "github_deploy_service_account" {
+  description = "GitHub Actions deploy service account for IAP-based deployments."
+  value       = var.enable_github_iap_deploy ? google_service_account.github_deploy[0].email : null
+}
+
+output "github_workload_identity_provider" {
+  description = "Workload Identity Provider resource name for GitHub Actions."
+  value       = "projects/${data.google_project.current.number}/locations/global/workloadIdentityPools/${var.github_actions_workload_identity_pool_id}/providers/${var.github_actions_workload_identity_provider_id}"
+}
+
 output "ssh_command" {
   description = "Command for SSH access through gcloud."
   value       = "gcloud compute ssh ${google_compute_instance.web.name} --zone ${var.zone}"
+}
+
+output "iap_ssh_command" {
+  description = "Command for SSH access through Google IAP TCP forwarding."
+  value       = "gcloud compute ssh ${google_compute_instance.web.name} --zone ${var.zone} --tunnel-through-iap"
 }
 
 output "cloudflare_dns_records" {

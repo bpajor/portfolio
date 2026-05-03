@@ -98,10 +98,10 @@ echo "Backup bucket:         $backup_bucket"
 if command -v ssh >/dev/null 2>&1 && [ -n "${SSH_HOST:-}" ] && [ -n "${SSH_PORT:-}" ] && [ -n "${SSH_USER:-}" ]; then
   info "Checking local SSH auth sanity to $SSH_USER@$SSH_HOST:$SSH_PORT"
   if ! ssh -o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=no -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" true >/dev/null 2>&1; then
-    warn "local SSH sanity check failed; GitHub deploys still require runner firewall access, deploy key auth, and host fingerprint secrets"
+    warn "local SSH sanity check failed; GitHub deploys use IAP and do not require direct runner SSH access"
   fi
 else
-  warn "SSH_HOST, SSH_PORT, SSH_USER, or ssh client is missing; skipping local SSH sanity check"
+  warn "SSH_HOST, SSH_PORT, SSH_USER, or ssh client is missing; skipping optional direct SSH sanity check"
 fi
 
 case "$mode" in
@@ -131,8 +131,8 @@ Preflight passed for $mode.
 Before enabling automatic deploys, confirm in GitHub:
 - environments exist: staging, production
 - production environment has required reviewers
-- environment secrets exist: SSH_HOST, SSH_USER, SSH_PRIVATE_KEY, SSH_PORT, SSH_KNOWN_HOSTS, SSH_FINGERPRINT, APP_DIR
-- environment vars exist: BASE_URL
+- environment secrets exist: APP_DIR, GCP_WORKLOAD_IDENTITY_PROVIDER, GCP_DEPLOY_SERVICE_ACCOUNT
+- environment vars exist: BASE_URL, GCP_PROJECT_ID, GCP_VM_NAME, GCP_VM_ZONE
 - staging vars exist: STAGING_TUNNEL_LOCAL_PORT, STAGING_TUNNEL_TARGET_HOST, STAGING_TUNNEL_TARGET_PORT
 - repository var DEPLOY_ENABLED is set to true only after the first successful manual deployment
 EOF

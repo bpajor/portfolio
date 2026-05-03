@@ -131,6 +131,7 @@ Production app dir: $production_dir
 
 Next steps:
 1. Edit both deploy/compose/.env files.
-2. Add GitHub environment secrets APP_DIR, SSH_HOST, SSH_USER, SSH_PRIVATE_KEY, SSH_PORT, SSH_KNOWN_HOSTS, SSH_FINGERPRINT.
-3. Log out and back in if you need the deploy user to pick up docker group membership.
+2. Add GitHub environment secrets APP_DIR, GCP_WORKLOAD_IDENTITY_PROVIDER, GCP_DEPLOY_SERVICE_ACCOUNT.
+3. Add GitHub environment vars BASE_URL, GCP_PROJECT_ID, GCP_VM_NAME, GCP_VM_ZONE.
+4. Log out and back in if you need the deploy user to pick up docker group membership.
 EOF
