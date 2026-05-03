@@ -105,7 +105,7 @@ Then run `terraform plan` and `terraform apply` from a trusted machine. Store th
 - var `GCP_VM_NAME`: `terraform output -raw vm_name`
 - var `GCP_VM_ZONE`: `terraform output -raw vm_zone`
 
-The deploy service account gets only the roles needed to reach the VM through IAP and use OS Login admin access: `roles/iap.tunnelResourceAccessor`, `roles/compute.viewer`, and `roles/compute.osAdminLogin`.
+The deploy service account gets only the roles needed to reach the VM through IAP and use OS Login admin access: `roles/iap.tunnelResourceAccessor`, `roles/compute.viewer`, `roles/compute.osAdminLogin`, and `roles/iam.serviceAccountUser` on the VM service account. OS Login checks `iam.serviceAccounts.actAs` because SSH access to a VM also gives access to credentials for the service account attached to that VM.
 
 ## SSH
 
