@@ -115,17 +115,19 @@ Use the first command output for `SSH_KNOWN_HOSTS` and the second command output
 Flow:
 
 1. Reuse the full PR CI workflow.
-2. Deploy `main` to `staging` over SSH.
-3. Open an SSH tunnel from the GitHub runner to the private staging Caddy port.
-4. Run smoke checks against staging:
+2. Build staging Docker images on the GitHub runner and upload the image archive to the VM.
+3. Deploy `main` to `staging` over SSH with `docker load` and `docker compose up --no-build`.
+4. Open an SSH tunnel from the GitHub runner to the private staging Caddy port.
+5. Run smoke checks against staging:
    - `/api/healthz` must return success.
    - `/mcp` must reject anonymous access with `401`.
-5. Run Playwright E2E checks against the deployed staging stack through the tunnel.
-6. Run Terraform plan with the shared GCS state and publish the plan in the deploy run summary and artifacts.
-7. Wait for `production` environment approval after reviewing staging checks and the Terraform plan output from the same workflow run.
-8. Create a best-effort PostgreSQL backup on production.
-9. Deploy `main` to production over SSH.
-10. Run the same production smoke checks.
+6. Run Playwright E2E checks against the deployed staging stack through the tunnel.
+7. Run Terraform plan with the shared GCS state and publish the plan in the deploy run summary and artifacts.
+8. Wait for `production` environment approval after reviewing staging checks and the Terraform plan output from the same workflow run.
+9. Build production Docker images on the GitHub runner and upload the image archive to the VM.
+10. Create a best-effort PostgreSQL backup on production.
+11. Deploy `main` to production over SSH with `docker load` and `docker compose up --no-build`.
+12. Run the same production smoke checks.
 
 ## VM Requirements
 
@@ -134,12 +136,13 @@ The deploy user must be able to run:
 ```bash
 git fetch origin main
 git pull --ff-only origin main
-docker compose --env-file .env -f deploy/compose/compose.yml up -d --build
+docker load -i /tmp/portfolio-release-images.tar.gz
+docker compose --env-file .env -f deploy/compose/compose.yml up -d --no-build
 ```
 
 The VM should already have Docker, Docker Compose, repository checkout, and `deploy/compose/.env` configured. See `deploy/compose/README.md` and `docs/gcp-dns-deployment.md`.
 
-First-release finding: the `up -d --build` VM deploy path is not reliable on the Free-Tier-sized `e2-micro` VM. During the initial manual release, image builds consumed enough CPU and memory to make SSH unreliable even with swap. Before enabling `DEPLOY_ENABLED=true`, move image builds to GitHub Actions or another external builder and make the VM deploy only pull or load prebuilt images, run migrations, start Compose, and execute smoke checks. TASK-024 tracks this change.
+The deploy workflow treats the Free-Tier-sized `e2-micro` VM as a runtime target, not a build worker. GitHub Actions builds the web, API, and MCP Docker images on the runner, uploads a compressed image archive to the VM, then the VM runs `docker load` and `docker compose up --no-build`. This avoids the slow and unreliable VM-side `npm ci` and Go build path found during the first manual release.
 
 The GitHub-hosted deploy runner must also be able to reach the VM over SSH. In Terraform this means `ssh_source_ranges` must include the source CIDR used by the deploy runner. For a tighter setup, prefer a self-hosted runner with a stable egress IP or a future IAP-based deploy workflow. If direct SSH is closed, PR CI can still pass but staging and production deploy jobs will fail before any Compose command runs.
 
@@ -191,9 +194,12 @@ cd "$APP_DIR"
 git fetch origin main
 git checkout <known-good-sha>
 cd deploy/compose
-docker compose --env-file .env -f compose.yml up -d --build
+docker load -i /tmp/known-good-portfolio-images.tar.gz
+docker compose --env-file .env -f compose.yml up -d --no-build
 docker compose --env-file .env -f compose.yml ps
 ```
+
+With the prebuilt-image deploy path, checking out an older commit on the VM is not enough by itself because Compose will keep using the images currently loaded under the project tags. Prefer re-running the GitHub deploy workflow from a known-good commit, or load a known-good image archive before running `docker compose up --no-build`.
 
 If database state is corrupted, restore from the latest dump created by `deploy/compose/backup-postgres.sh`.
 Use `deploy/compose/restore-postgres.sh` for this operation. It requires `CONFIRM_RESTORE=I_UNDERSTAND_THIS_OVERWRITES_DATABASE` and creates a pre-restore backup by default.

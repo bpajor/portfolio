@@ -51,6 +51,8 @@ Start the stack:
 docker compose -f compose.yml up -d --build
 ```
 
+GitHub Actions deployments build the `web`, `api`, and `mcp` images outside the VM and load them on the VM before starting Compose with `--no-build`. Image names are derived from `COMPOSE_PROJECT_NAME`, for example `portfolio-production-web:latest`, `portfolio-production-api:latest`, and `portfolio-production-mcp:latest`.
+
 For a local smoke test without binding host port 80, set:
 
 ```bash

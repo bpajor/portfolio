@@ -266,7 +266,7 @@ docker compose --env-file .env -f compose.yml up -d --build
 docker compose --env-file .env -f compose.yml ps
 ```
 
-For the first manual release, avoid building on the `e2-micro` VM if the web or Go image builds become slow enough to affect SSH. Build the images outside the VM, load or pull them on the VM, then start the stack with `--no-build`. TASK-024 tracks making this the default release path with a proper image registry.
+For the first manual release and GitHub Actions deployments, avoid building on the `e2-micro` VM. Build the images outside the VM, load or pull them on the VM, then start the stack with `--no-build`. The current GitHub deploy workflow uses this prebuilt-image path.
 
 Check the API:
 
@@ -386,7 +386,7 @@ docker compose --env-file .env -f compose.yml up -d --build
 docker compose --env-file .env -f compose.yml ps
 ```
 
-Known release caveat: this local `--build` update path is too heavy for the `e2-micro` target and should be replaced before enabling automatic deployments. Until TASK-024 is implemented, use an external builder and deploy prebuilt images when VM-side builds stall or make SSH unreliable.
+Known release caveat: this local `--build` update path is too heavy for the `e2-micro` target. Prefer the GitHub Actions prebuilt-image deploy path, or use an external builder and deploy prebuilt images manually when updating from the VM.
 
 Rollback to the previous commit if needed:
 
