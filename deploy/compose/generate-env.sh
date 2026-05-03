@@ -50,7 +50,7 @@ if [ "$mode" = "staging" ]; then
   allowed_origins="$site_url"
 else
   compose_project="portfolio-production"
-  site_address="${domain},www.${domain}"
+  site_address="${domain}, www.${domain}"
   http_port="80"
   https_port="443"
   site_url="https://${domain}"

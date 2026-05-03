@@ -26,7 +26,7 @@ cp .env.example .env
 Edit `.env` and replace all secrets. For a real domain, set:
 
 ```bash
-SITE_ADDRESS=bpajor.dev,www.bpajor.dev
+SITE_ADDRESS=bpajor.dev, www.bpajor.dev
 NEXT_PUBLIC_SITE_URL=https://bpajor.dev
 NEXT_PUBLIC_API_BASE_URL=/api
 API_ALLOWED_ORIGINS=https://bpajor.dev,https://www.bpajor.dev
