@@ -23,6 +23,7 @@ jobs:
       TF_VAR_project_id: ${{ vars.GCP_PROJECT_ID }}
       TF_VAR_backup_bucket_name: ${{ vars.TF_VAR_BACKUP_BUCKET_NAME }}
       TF_VAR_ssh_source_ranges: ${{ vars.TF_VAR_SSH_SOURCE_RANGES }}
+      TF_VAR_enable_github_iap_deploy: ${{ vars.TF_VAR_ENABLE_GITHUB_IAP_DEPLOY || 'false' }}
       TERRAFORM_STATE_BUCKET: ${{ vars.TERRAFORM_STATE_BUCKET }}
       TERRAFORM_STATE_PREFIX: ${{ vars.TERRAFORM_STATE_PREFIX }}
     steps:
@@ -40,6 +41,7 @@ jobs:
             TF_VAR_project_id \
             TF_VAR_backup_bucket_name \
             TF_VAR_ssh_source_ranges \
+            TF_VAR_enable_github_iap_deploy \
             TERRAFORM_STATE_BUCKET \
             TERRAFORM_STATE_PREFIX \
             GCP_WORKLOAD_IDENTITY_PROVIDER \
@@ -64,8 +66,12 @@ jobs:
               print(f"::error::TF_VAR_SSH_SOURCE_RANGES must be a JSON list of CIDR strings: {exc}")
               sys.exit(1)
 
-          if not isinstance(ranges, list) or not ranges or not all(isinstance(item, str) for item in ranges):
-              print("::error::TF_VAR_SSH_SOURCE_RANGES must be a non-empty JSON list of CIDR strings")
+          if not isinstance(ranges, list) or not all(isinstance(item, str) for item in ranges):
+              print("::error::TF_VAR_SSH_SOURCE_RANGES must be a JSON list of CIDR strings")
+              sys.exit(1)
+
+          if os.environ["TF_VAR_enable_github_iap_deploy"] not in ("true", "false"):
+              print("::error::TF_VAR_ENABLE_GITHUB_IAP_DEPLOY must be true or false")
               sys.exit(1)
           PY
 

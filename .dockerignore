@@ -13,6 +13,7 @@ artifacts
 .env.*
 *.log
 *.tmp
+gha-creds-*.json
 *.tsbuildinfo
 deploy/compose/postgres-data
 db/data

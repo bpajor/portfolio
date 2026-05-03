@@ -30,16 +30,15 @@ Set required reviewers on `production`. Leave `staging` without manual approval 
 Each environment needs this variable:
 
 - `BASE_URL`: GitHub environment URL. For production, set the public URL, for example `https://bpajor.dev`.
+- `GCP_PROJECT_ID`: GCP project that hosts the VM, for example `bpajor-portfolio-prod`.
+- `GCP_VM_NAME`: Compute Engine VM name, for example `portfolio-vm`.
+- `GCP_VM_ZONE`: Compute Engine VM zone, for example `us-central1-a`.
 
 Each environment needs these secrets:
 
-- `SSH_HOST`: VM public IP or DNS name
-- `SSH_USER`: deploy user on the VM
-- `SSH_PRIVATE_KEY`: private key for the deploy user
-- `SSH_PORT`: usually `22`
-- `SSH_KNOWN_HOSTS`: expected SSH host key line for the VM
-- `SSH_FINGERPRINT`: SHA256 host key fingerprint used by `appleboy/ssh-action`
 - `APP_DIR`: absolute path to the checked-out repository on the VM
+- `GCP_WORKLOAD_IDENTITY_PROVIDER`: Workload Identity Provider resource name.
+- `GCP_DEPLOY_SERVICE_ACCOUNT`: deploy service account email used by GitHub Actions.
 
 Use separate secrets for staging and production. Production secrets should only exist in the `production` environment.
 
@@ -68,7 +67,7 @@ HTTP_PORT=80
 HTTPS_PORT=443
 ```
 
-With this model, staging is deployed on the same VM but is not publicly exposed. GitHub Actions opens an SSH tunnel to `127.0.0.1:18080` and runs smoke/E2E checks through that tunnel.
+With this model, staging is deployed on the same VM but is not publicly exposed. GitHub Actions opens an IAP-backed SSH tunnel to `127.0.0.1:18080` and runs smoke/E2E checks through that tunnel.
 
 Both staging and production deploy jobs run `deploy/compose/validate-env.sh` before rebuilding the stack. The deploy stops early if required values are missing, placeholders remain, public Next.js URLs are inconsistent, MCP tokens match, or staging ports are not bound to localhost.
 
@@ -76,7 +75,7 @@ Both staging and production deploy jobs run `deploy/compose/validate-env.sh` bef
 
 `.github/workflows/deploy.yml` runs on pushes to `main` and manually through `workflow_dispatch`.
 
-Push-to-main deployments are intentionally gated while the first infrastructure setup is in progress. Keep the repository variable `DEPLOY_ENABLED` unset or set to any value other than `true` until the VM, GitHub environments, SSH secrets, and environment `.env` files are ready.
+Push-to-main deployments are intentionally gated while the first infrastructure setup is in progress. Keep the repository variable `DEPLOY_ENABLED` unset or set to any value other than `true` until the VM, GitHub environments, IAP deploy service account, and environment `.env` files are ready.
 
 When the deployment target is ready, set this repository variable:
 
@@ -94,40 +93,25 @@ cd /opt/portfolio-production/deploy/compose
 BASE_URL=https://bpajor.dev ./preflight.sh production .env
 ```
 
-Generate the deploy SSH key locally, install only the public key on the VM through the bootstrap script, and store the private key in GitHub environment secrets:
-
-```bash
-ssh-keygen -t ed25519 -a 200 -f ~/.ssh/portfolio-github-actions -C "github-actions portfolio deploy"
-
-sudo DEPLOY_PUBLIC_KEY="$(cat ~/.ssh/portfolio-github-actions.pub)" \
-  bash deploy/vm/bootstrap-debian.sh
-```
-
-Get the host key values for GitHub secrets:
-
-```bash
-ssh-keyscan -p 22 YOUR_VM_IP_OR_DOMAIN
-ssh-keyscan -p 22 YOUR_VM_IP_OR_DOMAIN 2>/dev/null | ssh-keygen -l -f - | awk '{print $2}' | head -n 1
-```
-
-Use the first command output for `SSH_KNOWN_HOSTS` and the second command output for `SSH_FINGERPRINT`.
+GitHub Actions deploys through Google IAP TCP forwarding and OS Login. Do not create a long-lived deploy SSH key for GitHub. Enable `enable_github_iap_deploy = true` in Terraform, apply it from a trusted machine, store the resulting `github_deploy_service_account` output as the `GCP_DEPLOY_SERVICE_ACCOUNT` environment secret for both staging and production, and set the GitHub `terraform` environment variable `TF_VAR_ENABLE_GITHUB_IAP_DEPLOY=true` so future plan runs keep that resource.
 
 Flow:
 
 1. Reuse the full PR CI workflow.
-2. Build staging Docker images on the GitHub runner and upload the image archive to the VM.
-3. Deploy `main` to `staging` over SSH with `docker load` and `docker compose up --no-build`.
-4. Open an SSH tunnel from the GitHub runner to the private staging Caddy port.
-5. Run smoke checks against staging:
+2. Build staging Docker images on the GitHub runner.
+3. Upload the staging image archive to the VM through IAP.
+4. Deploy `main` to `staging` over IAP-backed SSH with `docker load` and `docker compose up --no-build`.
+5. Open an IAP-backed SSH tunnel from the GitHub runner to the private staging Caddy port.
+6. Run smoke checks against staging:
    - `/api/healthz` must return success.
    - `/mcp` must reject anonymous access with `401`.
-6. Run Playwright E2E checks against the deployed staging stack through the tunnel.
-7. Run Terraform plan with the shared GCS state and publish the plan in the deploy run summary and artifacts.
-8. Wait for `production` environment approval after reviewing staging checks and the Terraform plan output from the same workflow run.
-9. Build production Docker images on the GitHub runner and upload the image archive to the VM.
-10. Create a best-effort PostgreSQL backup on production.
-11. Deploy `main` to production over SSH with `docker load` and `docker compose up --no-build`.
-12. Run the same production smoke checks.
+7. Run Playwright E2E checks against the deployed staging stack through the tunnel.
+8. Run Terraform plan with the shared GCS state and publish the plan in the deploy run summary and artifacts.
+9. Wait for `production` environment approval after reviewing staging checks and the Terraform plan output from the same workflow run.
+10. Build production Docker images on the GitHub runner and upload the image archive to the VM through IAP.
+11. Create a best-effort PostgreSQL backup on production.
+12. Deploy `main` to production over IAP-backed SSH with `docker load` and `docker compose up --no-build`.
+13. Run the same production smoke checks.
 
 ## VM Requirements
 
@@ -144,19 +128,20 @@ The VM should already have Docker, Docker Compose, repository checkout, and `dep
 
 The deploy workflow treats the Free-Tier-sized `e2-micro` VM as a runtime target, not a build worker. GitHub Actions builds the web, API, and MCP Docker images on the runner, uploads a compressed image archive to the VM, then the VM runs `docker load` and `docker compose up --no-build`. This avoids the slow and unreliable VM-side `npm ci` and Go build path found during the first manual release.
 
-The GitHub-hosted deploy runner must also be able to reach the VM over SSH. In Terraform this means `ssh_source_ranges` must include the source CIDR used by the deploy runner. For a tighter setup, prefer a self-hosted runner with a stable egress IP or a future IAP-based deploy workflow. If direct SSH is closed, PR CI can still pass but staging and production deploy jobs will fail before any Compose command runs.
+The GitHub-hosted deploy runner reaches the VM through Google IAP TCP forwarding. Terraform opens SSH only to the Google-owned IAP source range `35.235.240.0/20`; it does not need to allow GitHub runner IPs on port `22`. Direct SSH can stay limited to your own `/32` or disabled with `ssh_source_ranges = []`.
 
 Do not run Terraform from GitHub Actions with an open `web_source_ranges = ["0.0.0.0/0"]` after the first public certificate is issued. The Terraform module default is Cloudflare IPv4-only origin access so an apply without production-specific tfvars does not reopen the VM origin. Use `0.0.0.0/0` only as an intentional, temporary override for first certificate issuance or direct origin debugging.
 
 ## GCP Access Model
 
-The current low-cost deployment model does not require a GitHub-hosted GCP service account key. GitHub Actions connects to the GCE VM over SSH, and the VM runs Docker Compose locally.
+The current low-cost deployment model does not require a GitHub-hosted GCP service account key. GitHub Actions authenticates with Workload Identity Federation, transfers prebuilt Docker image archives through IAP, and runs Docker Compose locally on the VM.
 
 Recommended GCP setup:
 
-- Create a dedicated OS Login or VM SSH deploy user with access only to the portfolio VM.
+- Create a dedicated GitHub Actions deploy service account with Workload Identity Federation.
+- Grant that service account `roles/iap.tunnelResourceAccessor`, `roles/compute.viewer`, and `roles/compute.osAdminLogin` in the project.
 - Do not store broad GCP owner/editor keys in GitHub secrets.
-- Keep VM firewall rules limited to SSH from trusted source ranges and public HTTP/HTTPS.
+- Keep VM firewall rules limited to SSH from IAP/trusted admin source ranges and HTTP/HTTPS from Cloudflare.
 - Run Terraform from GitHub with Workload Identity Federation and a narrowly scoped service account instead of a JSON key.
 
 Terraform plan runs in a separate manual GitHub Actions workflow named `Terraform Plan`. It requires a dedicated GCS remote state bucket and Workload Identity Federation. The workflow prints the plan in the Actions log, writes it to the run summary, and uploads the full plan as an artifact. It does not run `terraform apply`.

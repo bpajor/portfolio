@@ -5,6 +5,15 @@ name_prefix        = "portfolio"
 domain             = "bpajor.dev"
 backup_bucket_name = "bpajor-portfolio-backups-unique-suffix"
 
+# Enable after the GitHub Actions Workload Identity Pool and Provider exist.
+enable_github_iap_deploy = false
+# github_actions_repository = "bpajor/portfolio"
+# github_actions_workload_identity_pool_id = "github-actions"
+# github_actions_workload_identity_provider_id = "github"
+
+# IAP TCP forwarding uses this Google-owned source range for SSH.
+# iap_ssh_source_ranges = ["35.235.240.0/20"]
+
 # Keep empty if you use IAP or temporary browser SSH.
 # For direct SSH, set your current public IP, for example ["203.0.113.10/32"].
 ssh_source_ranges = []

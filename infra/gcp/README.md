@@ -6,9 +6,11 @@ This Terraform stack provisions the low-cost GCP infrastructure for the portfoli
 - static external IPv4 address,
 - Compute Engine VM for Docker Compose,
 - HTTP/HTTPS firewall rule,
+- IAP SSH firewall rule,
 - optional direct SSH firewall rule,
 - OS Login metadata,
 - VM service account,
+- optional GitHub Actions deploy service account for IAP,
 - Cloud Storage backup bucket with lifecycle deletion,
 - optional monthly billing budget.
 
@@ -77,7 +79,8 @@ Required GitHub `terraform` environment variables:
 - `TERRAFORM_STATE_BUCKET`: dedicated GCS bucket name for Terraform state, without `gs://`
 - `TERRAFORM_STATE_PREFIX`: `portfolio/infra/gcp`
 - `TF_VAR_BACKUP_BUCKET_NAME`: `bpajor-portfolio-prod-backups`
-- `TF_VAR_SSH_SOURCE_RANGES`: JSON list of current SSH CIDRs, for example `["194.152.56.130/32"]`
+- `TF_VAR_SSH_SOURCE_RANGES`: JSON list of direct SSH CIDRs, for example `["194.152.56.130/32"]` or `[]` when direct SSH should stay closed
+- `TF_VAR_ENABLE_GITHUB_IAP_DEPLOY`: `true` after the IAP deploy service account has been applied, otherwise `false`
 
 Required GitHub `terraform` environment secrets:
 
@@ -85,6 +88,24 @@ Required GitHub `terraform` environment secrets:
 - `GCP_TERRAFORM_SERVICE_ACCOUNT`
 
 After apply, use the `static_ip` output to create Cloudflare DNS records. Then bootstrap the VM with `deploy/vm/bootstrap-debian.sh`; the full flow is documented in `docs/gcp-dns-deployment.md`.
+
+## GitHub Actions IAP Deploy
+
+The deploy workflow uses Google IAP TCP forwarding instead of a long-lived SSH private key. After the Workload Identity Pool and Provider exist, enable the deploy service account:
+
+```hcl
+enable_github_iap_deploy = true
+```
+
+Then run `terraform plan` and `terraform apply` from a trusted machine. Store these outputs in the `staging` and `production` GitHub environments:
+
+- secret `GCP_DEPLOY_SERVICE_ACCOUNT`: `terraform output -raw github_deploy_service_account`
+- secret `GCP_WORKLOAD_IDENTITY_PROVIDER`: `terraform output -raw github_workload_identity_provider`
+- var `GCP_PROJECT_ID`: project ID, for example `bpajor-portfolio-prod`
+- var `GCP_VM_NAME`: `terraform output -raw vm_name`
+- var `GCP_VM_ZONE`: `terraform output -raw vm_zone`
+
+The deploy service account gets only the roles needed to reach the VM through IAP and use OS Login admin access: `roles/iap.tunnelResourceAccessor`, `roles/compute.viewer`, and `roles/compute.osAdminLogin`.
 
 ## SSH
 
@@ -94,9 +115,7 @@ The stack enables OS Login. Connect with the output command:
 terraform output -raw ssh_command
 ```
 
-If `ssh_source_ranges` is empty, direct SSH port `22` is not opened by Terraform. Use Google Cloud Console SSH, IAP, or temporarily add your current public IP as `/32`.
-
-GitHub-hosted Actions deployments use direct SSH in the current workflow. Before setting `DEPLOY_ENABLED=true`, make sure `ssh_source_ranges` includes the deploy runner source CIDR, or use a self-hosted runner/manual deploy path.
+If `ssh_source_ranges` is empty, direct SSH port `22` is not opened by Terraform. GitHub Actions deployments still work through IAP as long as `enable_github_iap_deploy = true` has been applied and the environment secrets/vars above are configured.
 
 ## Backups
 
