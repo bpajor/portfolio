@@ -121,10 +121,11 @@ Flow:
    - `/api/healthz` must return success.
    - `/mcp` must reject anonymous access with `401`.
 5. Run Playwright E2E checks against the deployed staging stack through the tunnel.
-6. Wait for `production` environment approval.
-7. Create a best-effort PostgreSQL backup on production.
-8. Deploy `main` to production over SSH.
-9. Run the same production smoke checks.
+6. Run Terraform plan with the shared GCS state and publish the plan in the deploy run summary and artifacts.
+7. Wait for `production` environment approval after reviewing staging checks and the Terraform plan output from the same workflow run.
+8. Create a best-effort PostgreSQL backup on production.
+9. Deploy `main` to production over SSH.
+10. Run the same production smoke checks.
 
 ## VM Requirements
 
@@ -156,6 +157,8 @@ Recommended GCP setup:
 - Run Terraform from GitHub with Workload Identity Federation and a narrowly scoped service account instead of a JSON key.
 
 Terraform plan runs in a separate manual GitHub Actions workflow named `Terraform Plan`. It requires a dedicated GCS remote state bucket and Workload Identity Federation. The workflow prints the plan in the Actions log, writes it to the run summary, and uploads the full plan as an artifact. It does not run `terraform apply`.
+
+The deploy workflow also calls the same Terraform plan workflow before the `production` approval gate. Reviewers should inspect the deploy run summary or the `terraform-plan` artifact before approving production.
 
 Before enabling any Terraform apply workflow:
 
@@ -204,5 +207,6 @@ Before approving production:
 - Staging `/api/healthz` passed.
 - Staging `/mcp` returned `401` without a bearer token.
 - Staging Playwright E2E passed against the deployed URL.
+- Terraform plan output is visible in the deploy run and has been reviewed.
 - The change does not require manual database repair.
 - A rollback commit or known good SHA is available.
