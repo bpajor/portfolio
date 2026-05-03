@@ -9,10 +9,11 @@ backup_bucket_name = "bpajor-portfolio-backups-unique-suffix"
 # For direct SSH, set your current public IP, for example ["203.0.113.10/32"].
 ssh_source_ranges = []
 
-# Keep open for first Caddy certificate issuance while DNS is DNS-only.
-# After Cloudflare proxy is enabled, replace with Cloudflare IPv4 ranges from:
+# The module default is the current Cloudflare IPv4 range list from:
 # https://www.cloudflare.com/ips-v4
-web_source_ranges = ["0.0.0.0/0"]
+# Temporarily use ["0.0.0.0/0"] only for first Caddy certificate issuance
+# or direct origin debugging, then remove the override or set Cloudflare ranges.
+# web_source_ranges = ["0.0.0.0/0"]
 
 # Optional. Enable after you know your billing account ID.
 enable_billing_budget = false

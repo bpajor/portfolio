@@ -142,6 +142,8 @@ First-release finding: the `up -d --build` VM deploy path is not reliable on the
 
 The GitHub-hosted deploy runner must also be able to reach the VM over SSH. In Terraform this means `ssh_source_ranges` must include the source CIDR used by the deploy runner. For a tighter setup, prefer a self-hosted runner with a stable egress IP or a future IAP-based deploy workflow. If direct SSH is closed, PR CI can still pass but staging and production deploy jobs will fail before any Compose command runs.
 
+Do not run Terraform from GitHub Actions with an open `web_source_ranges = ["0.0.0.0/0"]` after the first public certificate is issued. The Terraform module default is Cloudflare IPv4-only origin access so an apply without production-specific tfvars does not reopen the VM origin. Use `0.0.0.0/0` only as an intentional, temporary override for first certificate issuance or direct origin debugging.
+
 ## GCP Access Model
 
 The current low-cost deployment model does not require a GitHub-hosted GCP service account key. GitHub Actions connects to the GCE VM over SSH, and the VM runs Docker Compose locally.
