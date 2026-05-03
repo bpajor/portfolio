@@ -12,6 +12,7 @@ concurrency:
 
 permissions:
   contents: read
+  id-token: write
 
 jobs:
   verify:
@@ -137,10 +138,19 @@ jobs:
       - name: Staging E2E tests
         run: E2E_BASE_URL="$STAGING_BASE_URL" npm run test:e2e
 
+  terraform-plan:
+    name: Terraform plan before production approval
+    needs: verify
+    if: ${{ github.event_name == 'workflow_dispatch' || vars.DEPLOY_ENABLED == 'true' }}
+    uses: ./.github/workflows/terraform-plan.yml
+    secrets: inherit
+
   approve-production:
     name: Await production approval
     runs-on: ubuntu-latest
-    needs: deploy-staging
+    needs:
+      - deploy-staging
+      - terraform-plan
     environment:
       name: production
     steps:
