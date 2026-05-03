@@ -1,0 +1,159 @@
+name: Terraform Plan
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: terraform-plan-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  plan:
+    name: Terraform plan
+    runs-on: ubuntu-latest
+    environment:
+      name: terraform
+    env:
+      TF_IN_AUTOMATION: "true"
+      TF_VAR_project_id: ${{ vars.GCP_PROJECT_ID }}
+      TF_VAR_backup_bucket_name: ${{ vars.TF_VAR_BACKUP_BUCKET_NAME }}
+      TF_VAR_ssh_source_ranges: ${{ vars.TF_VAR_SSH_SOURCE_RANGES }}
+      TERRAFORM_STATE_BUCKET: ${{ vars.TERRAFORM_STATE_BUCKET }}
+      TERRAFORM_STATE_PREFIX: ${{ vars.TERRAFORM_STATE_PREFIX }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Validate Terraform workflow configuration
+        env:
+          GCP_WORKLOAD_IDENTITY_PROVIDER: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          GCP_TERRAFORM_SERVICE_ACCOUNT: ${{ secrets.GCP_TERRAFORM_SERVICE_ACCOUNT }}
+        run: |
+          set -euo pipefail
+
+          for name in \
+            TF_VAR_project_id \
+            TF_VAR_backup_bucket_name \
+            TF_VAR_ssh_source_ranges \
+            TERRAFORM_STATE_BUCKET \
+            TERRAFORM_STATE_PREFIX \
+            GCP_WORKLOAD_IDENTITY_PROVIDER \
+            GCP_TERRAFORM_SERVICE_ACCOUNT
+          do
+            value="${!name:-}"
+            if [ -z "$value" ]; then
+              echo "::error::$name is required for Terraform plan"
+              exit 1
+            fi
+          done
+
+          python - <<'PY'
+          import json
+          import os
+          import sys
+
+          raw = os.environ["TF_VAR_ssh_source_ranges"]
+          try:
+              ranges = json.loads(raw)
+          except json.JSONDecodeError as exc:
+              print(f"::error::TF_VAR_SSH_SOURCE_RANGES must be a JSON list of CIDR strings: {exc}")
+              sys.exit(1)
+
+          if not isinstance(ranges, list) or not ranges or not all(isinstance(item, str) for item in ranges):
+              print("::error::TF_VAR_SSH_SOURCE_RANGES must be a non-empty JSON list of CIDR strings")
+              sys.exit(1)
+          PY
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_TERRAFORM_SERVICE_ACCOUNT }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: "1.9.8"
+          terraform_wrapper: false
+
+      - name: Terraform format check
+        working-directory: infra/gcp
+        run: terraform fmt -check -recursive
+
+      - name: Terraform init
+        working-directory: infra/gcp
+        run: |
+          set -euo pipefail
+          terraform init \
+            -input=false \
+            -backend-config="bucket=${TERRAFORM_STATE_BUCKET}" \
+            -backend-config="prefix=${TERRAFORM_STATE_PREFIX}"
+
+      - name: Terraform validate
+        working-directory: infra/gcp
+        run: terraform validate
+
+      - name: Terraform plan
+        id: plan
+        working-directory: infra/gcp
+        run: |
+          set -euo pipefail
+          set +e
+          terraform plan \
+            -input=false \
+            -no-color \
+            -detailed-exitcode \
+            -out=tfplan \
+            > terraform-plan.log
+          code="$?"
+          set -e
+
+          cat terraform-plan.log
+
+          if [ "$code" -eq 1 ]; then
+            echo "::error::terraform plan failed"
+            exit 1
+          fi
+
+          terraform show -no-color tfplan > terraform-plan.txt
+
+          if [ "$code" -eq 2 ]; then
+            changes="true"
+            echo "changes=true" >> "$GITHUB_OUTPUT"
+            echo "::warning::Terraform plan contains changes. Review the plan before any apply."
+          else
+            changes="false"
+            echo "changes=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Terraform plan contains no changes."
+          fi
+
+          {
+            echo "## Terraform Plan"
+            echo
+            echo "- Project: \`${TF_VAR_project_id}\`"
+            echo "- State bucket: \`${TERRAFORM_STATE_BUCKET}\`"
+            echo "- State prefix: \`${TERRAFORM_STATE_PREFIX}\`"
+            echo "- Contains changes: \`${changes}\`"
+            echo
+            echo '```text'
+            sed -n '1,400p' terraform-plan.txt
+            echo '```'
+            if [ "$(wc -l < terraform-plan.txt)" -gt 400 ]; then
+              echo
+              echo "Plan output was truncated in the summary. Download the terraform-plan artifact for the full output."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload Terraform plan output
+        uses: actions/upload-artifact@v4
+        with:
+          name: terraform-plan
+          path: |
+            infra/gcp/terraform-plan.log
+            infra/gcp/terraform-plan.txt
+          if-no-files-found: error
+          retention-days: 14

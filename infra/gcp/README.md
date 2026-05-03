@@ -49,7 +49,40 @@ terraform plan
 terraform apply
 ```
 
-Pull request CI runs the same non-mutating checks with `terraform init -backend=false`, `terraform fmt -check -recursive`, and `terraform validate`.
+Pull request CI runs non-mutating checks with `terraform init -backend=false`, `terraform fmt -check -recursive`, and `terraform validate`.
+
+The runtime Terraform backend is GCS. Before running Terraform from GitHub Actions, migrate the existing local state into a dedicated state bucket:
+
+```bash
+gcloud storage buckets create gs://YOUR_TERRAFORM_STATE_BUCKET \
+  --project YOUR_PROJECT_ID \
+  --location us-central1 \
+  --uniform-bucket-level-access
+
+gcloud storage buckets update gs://YOUR_TERRAFORM_STATE_BUCKET --versioning
+
+terraform init \
+  -migrate-state \
+  -backend-config="bucket=YOUR_TERRAFORM_STATE_BUCKET" \
+  -backend-config="prefix=portfolio/infra/gcp"
+```
+
+Do not use the application backup bucket as the Terraform state bucket. Keep infrastructure state separate from database backups.
+
+The manual `Terraform Plan` workflow in GitHub Actions authenticates with GCP through Workload Identity Federation, runs `terraform plan`, prints the plan in the job log, writes it to the run summary, and uploads the full plan as an artifact. It intentionally does not run `terraform apply`.
+
+Required GitHub `terraform` environment variables:
+
+- `GCP_PROJECT_ID`: `bpajor-portfolio-prod`
+- `TERRAFORM_STATE_BUCKET`: dedicated GCS bucket name for Terraform state, without `gs://`
+- `TERRAFORM_STATE_PREFIX`: `portfolio/infra/gcp`
+- `TF_VAR_BACKUP_BUCKET_NAME`: `bpajor-portfolio-prod-backups`
+- `TF_VAR_SSH_SOURCE_RANGES`: JSON list of current SSH CIDRs, for example `["194.152.56.130/32"]`
+
+Required GitHub `terraform` environment secrets:
+
+- `GCP_WORKLOAD_IDENTITY_PROVIDER`
+- `GCP_TERRAFORM_SERVICE_ACCOUNT`
 
 After apply, use the `static_ip` output to create Cloudflare DNS records. Then bootstrap the VM with `deploy/vm/bootstrap-debian.sh`; the full flow is documented in `docs/gcp-dns-deployment.md`.
 
@@ -77,4 +110,4 @@ gcloud storage cp "$(ls -t backups/portfolio-postgres-*.dump | head -n 1)" "gs:/
 
 ## State
 
-For one-person early development, local state is acceptable if it is backed up privately. Before CI/CD or collaboration, move Terraform state to a remote backend, for example a dedicated GCS bucket with versioning.
+Terraform state should live in a dedicated GCS backend before any GitHub Actions plan or apply workflow is used. Local state is acceptable only for the first manual bootstrap and must be migrated before CI/CD becomes the source of truth.
