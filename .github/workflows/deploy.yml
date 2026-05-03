@@ -52,14 +52,71 @@ jobs:
         run: |
           set -euo pipefail
           for name in SSH_HOST SSH_USER SSH_PRIVATE_KEY SSH_PORT SSH_KNOWN_HOSTS SSH_FINGERPRINT APP_DIR; do
-            value="$(printenv "$name")"
+            value="${!name:-}"
             if [ -z "$value" ]; then
               echo "::error::$name is required in the staging environment"
               exit 1
             fi
           done
 
-      - name: Deploy over SSH
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Build staging images
+        env:
+          NEXT_PUBLIC_SITE_URL: ${{ vars.BASE_URL }}
+          NEXT_PUBLIC_API_BASE_URL: /api
+          COMPOSE_PROJECT_NAME: portfolio-staging
+          RELEASE_IMAGE_ARCHIVE: /tmp/portfolio-staging-images.tar.gz
+        run: |
+          set -euo pipefail
+          docker build \
+            -f apps/web/Dockerfile \
+            --build-arg NEXT_PUBLIC_SITE_URL="$NEXT_PUBLIC_SITE_URL" \
+            --build-arg NEXT_PUBLIC_API_BASE_URL="$NEXT_PUBLIC_API_BASE_URL" \
+            -t "${COMPOSE_PROJECT_NAME}-web:latest" \
+            .
+          docker build \
+            -f apps/api/Dockerfile \
+            -t "${COMPOSE_PROJECT_NAME}-api:latest" \
+            .
+          docker build \
+            -f apps/mcp/Dockerfile \
+            -t "${COMPOSE_PROJECT_NAME}-mcp:latest" \
+            .
+          docker save \
+            "${COMPOSE_PROJECT_NAME}-web:latest" \
+            "${COMPOSE_PROJECT_NAME}-api:latest" \
+            "${COMPOSE_PROJECT_NAME}-mcp:latest" \
+            | gzip > "$RELEASE_IMAGE_ARCHIVE"
+          ls -lh "$RELEASE_IMAGE_ARCHIVE"
+
+      - name: Upload staging images to VM
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+          LOCAL_RELEASE_IMAGE_ARCHIVE: /tmp/portfolio-staging-images.tar.gz
+          REMOTE_RELEASE_IMAGE_ARCHIVE: /tmp/portfolio-staging-${{ github.sha }}.tar.gz
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/known_hosts
+          scp \
+            -i ~/.ssh/deploy_key \
+            -P "$SSH_PORT" \
+            -o StrictHostKeyChecking=yes \
+            -o UserKnownHostsFile=~/.ssh/known_hosts \
+            "$LOCAL_RELEASE_IMAGE_ARCHIVE" \
+            "${SSH_USER}@${SSH_HOST}:${REMOTE_RELEASE_IMAGE_ARCHIVE}"
+
+      - name: Deploy staging over SSH
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.SSH_HOST }}
@@ -69,14 +126,17 @@ jobs:
           fingerprint: ${{ secrets.SSH_FINGERPRINT }}
           script: |
             set -euo pipefail
+            remote_release_image_archive="/tmp/portfolio-staging-${{ github.sha }}.tar.gz"
             cd "${{ secrets.APP_DIR }}"
             git fetch origin main
             git checkout main
             git pull --ff-only origin main
             cd deploy/compose
             ./validate-env.sh staging .env
-            docker compose --env-file .env -f compose.yml up -d --build
+            docker load -i "$remote_release_image_archive"
+            docker compose --env-file .env -f compose.yml up -d --no-build
             docker compose --env-file .env -f compose.yml ps
+            rm -f "$remote_release_image_archive"
 
       - name: Open staging SSH tunnel
         env:
@@ -119,9 +179,6 @@ jobs:
           curl -fsS "$STAGING_BASE_URL/api/healthz"
           status="$(curl -sS -o /dev/null -w '%{http_code}' "$STAGING_BASE_URL/mcp")"
           test "$status" = "401"
-
-      - name: Checkout
-        uses: actions/checkout@v6
 
       - name: Setup Node
         uses: actions/setup-node@v6
@@ -177,14 +234,71 @@ jobs:
         run: |
           set -euo pipefail
           for name in SSH_HOST SSH_USER SSH_PRIVATE_KEY SSH_PORT SSH_KNOWN_HOSTS SSH_FINGERPRINT APP_DIR; do
-            value="$(printenv "$name")"
+            value="${!name:-}"
             if [ -z "$value" ]; then
               echo "::error::$name is required in the production environment"
               exit 1
             fi
           done
 
-      - name: Deploy over SSH
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Build production images
+        env:
+          NEXT_PUBLIC_SITE_URL: ${{ vars.BASE_URL }}
+          NEXT_PUBLIC_API_BASE_URL: /api
+          COMPOSE_PROJECT_NAME: portfolio-production
+          RELEASE_IMAGE_ARCHIVE: /tmp/portfolio-production-images.tar.gz
+        run: |
+          set -euo pipefail
+          docker build \
+            -f apps/web/Dockerfile \
+            --build-arg NEXT_PUBLIC_SITE_URL="$NEXT_PUBLIC_SITE_URL" \
+            --build-arg NEXT_PUBLIC_API_BASE_URL="$NEXT_PUBLIC_API_BASE_URL" \
+            -t "${COMPOSE_PROJECT_NAME}-web:latest" \
+            .
+          docker build \
+            -f apps/api/Dockerfile \
+            -t "${COMPOSE_PROJECT_NAME}-api:latest" \
+            .
+          docker build \
+            -f apps/mcp/Dockerfile \
+            -t "${COMPOSE_PROJECT_NAME}-mcp:latest" \
+            .
+          docker save \
+            "${COMPOSE_PROJECT_NAME}-web:latest" \
+            "${COMPOSE_PROJECT_NAME}-api:latest" \
+            "${COMPOSE_PROJECT_NAME}-mcp:latest" \
+            | gzip > "$RELEASE_IMAGE_ARCHIVE"
+          ls -lh "$RELEASE_IMAGE_ARCHIVE"
+
+      - name: Upload production images to VM
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+          LOCAL_RELEASE_IMAGE_ARCHIVE: /tmp/portfolio-production-images.tar.gz
+          REMOTE_RELEASE_IMAGE_ARCHIVE: /tmp/portfolio-production-${{ github.sha }}.tar.gz
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/known_hosts
+          scp \
+            -i ~/.ssh/deploy_key \
+            -P "$SSH_PORT" \
+            -o StrictHostKeyChecking=yes \
+            -o UserKnownHostsFile=~/.ssh/known_hosts \
+            "$LOCAL_RELEASE_IMAGE_ARCHIVE" \
+            "${SSH_USER}@${SSH_HOST}:${REMOTE_RELEASE_IMAGE_ARCHIVE}"
+
+      - name: Deploy production over SSH
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.SSH_HOST }}
@@ -194,6 +308,7 @@ jobs:
           fingerprint: ${{ secrets.SSH_FINGERPRINT }}
           script: |
             set -euo pipefail
+            remote_release_image_archive="/tmp/portfolio-production-${{ github.sha }}.tar.gz"
             cd "${{ secrets.APP_DIR }}"
             git fetch origin main
             git checkout main
@@ -201,8 +316,10 @@ jobs:
             cd deploy/compose
             ./validate-env.sh production .env
             ./backup-postgres.sh || true
-            docker compose --env-file .env -f compose.yml up -d --build
+            docker load -i "$remote_release_image_archive"
+            docker compose --env-file .env -f compose.yml up -d --no-build
             docker compose --env-file .env -f compose.yml ps
+            rm -f "$remote_release_image_archive"
 
       - name: Production smoke checks
         env:
