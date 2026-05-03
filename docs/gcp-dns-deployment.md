@@ -298,7 +298,7 @@ Recommended Cloudflare SSL/TLS setting:
 
 Caddy will obtain a public certificate for the origin. Full strict makes Cloudflare validate the certificate presented by the VM. Do not use Flexible mode for this app because the admin panel and API use authenticated traffic.
 
-After Caddy has issued the first public certificate and Cloudflare proxy is enabled for both records, tighten the GCP origin firewall so direct traffic to the VM IP is blocked:
+After Caddy has issued the first public certificate and Cloudflare proxy is enabled for both records, tighten the GCP origin firewall so direct traffic to the VM IP is blocked. The module default already uses Cloudflare IPv4 ranges, but any temporary first-launch `web_source_ranges = ["0.0.0.0/0"]` override must be removed or replaced before long-term operation:
 
 1. Confirm `https://bpajor.dev` works with Cloudflare proxy enabled.
 2. Copy the current Cloudflare IPv4 ranges from https://www.cloudflare.com/ips-v4.
@@ -306,7 +306,7 @@ After Caddy has issued the first public certificate and Cloudflare proxy is enab
 4. Run `terraform plan` and confirm only `portfolio-allow-web` source ranges change.
 5. Run `terraform apply`.
 
-Keep `web_source_ranges = ["0.0.0.0/0"]` only during first certificate issuance or while debugging direct origin connectivity.
+Keep `web_source_ranges = ["0.0.0.0/0"]` only during first certificate issuance or while debugging direct origin connectivity. Do not use that value in GitHub Actions Terraform applies after release, because it would reopen the origin to the public internet.
 
 ## 10. Caddy HTTPS
 
