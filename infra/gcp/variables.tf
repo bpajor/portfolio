@@ -98,6 +98,19 @@ variable "ssh_source_ranges" {
   }
 }
 
+variable "web_source_ranges" {
+  description = "IPv4 CIDR ranges allowed to reach public HTTP/HTTPS. Keep 0.0.0.0/0 for first Caddy certificate issuance, then switch to Cloudflare IPv4 ranges after DNS is proxied."
+  type        = list(string)
+  default     = ["0.0.0.0/0"]
+
+  validation {
+    condition = length(var.web_source_ranges) > 0 && alltrue([
+      for cidr in var.web_source_ranges : can(cidrhost(cidr, 0))
+    ])
+    error_message = "web_source_ranges must contain at least one valid IPv4 CIDR range."
+  }
+}
+
 variable "backup_bucket_name" {
   description = "Globally unique Cloud Storage bucket name for database backups."
   type        = string

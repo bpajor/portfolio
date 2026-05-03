@@ -289,14 +289,24 @@ In Cloudflare DNS, create:
 
 | Type | Name | Content | Proxy status | TTL |
 | --- | --- | --- | --- | --- |
-| `A` | `@` | VM static IPv4 | Proxied | Auto |
-| `CNAME` | `www` | `bpajor.dev` | Proxied | Auto |
+| `A` | `@` | VM static IPv4 | DNS only for first certificate, then Proxied | Auto |
+| `CNAME` | `www` | `bpajor.dev` | DNS only for first certificate, then Proxied | Auto |
 
 Recommended Cloudflare SSL/TLS setting:
 
 - Mode: **Full (strict)**.
 
 Caddy will obtain a public certificate for the origin. Full strict makes Cloudflare validate the certificate presented by the VM. Do not use Flexible mode for this app because the admin panel and API use authenticated traffic.
+
+After Caddy has issued the first public certificate and Cloudflare proxy is enabled for both records, tighten the GCP origin firewall so direct traffic to the VM IP is blocked:
+
+1. Confirm `https://bpajor.dev` works with Cloudflare proxy enabled.
+2. Copy the current Cloudflare IPv4 ranges from https://www.cloudflare.com/ips-v4.
+3. Set `web_source_ranges` in `infra/gcp/terraform.tfvars` to those ranges.
+4. Run `terraform plan` and confirm only `portfolio-allow-web` source ranges change.
+5. Run `terraform apply`.
+
+Keep `web_source_ranges = ["0.0.0.0/0"]` only during first certificate issuance or while debugging direct origin connectivity.
 
 ## 10. Caddy HTTPS
 
@@ -401,6 +411,7 @@ Before pointing the real domain at the VM:
 - `MCP_BEARER_TOKEN` and `MCP_ADMIN_BEARER_TOKEN` are different.
 - Cloudflare DNS is proxied for `@` and `www`.
 - Cloudflare SSL/TLS mode is Full strict after Caddy has a valid certificate.
+- GCP `portfolio-allow-web` source ranges are restricted to Cloudflare IPv4 ranges after proxy mode is enabled.
 - `/api/healthz` returns `status=ok` and `database=ok`.
 - `/mcp` returns `401` without a token.
 - A backup dump exists locally and in Cloud Storage.
