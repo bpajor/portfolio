@@ -57,3 +57,34 @@ Acceptance criteria:
 - The homepage has valid structured data for the author/person and website.
 - Searching for the name begins surfacing the domain or Search Console indicates no technical blocker remains.
 - GEO assets remain aligned with real page content and do not rely on hidden text or misleading keyword stuffing.
+
+## 3. Expand Automated Test Coverage, Especially Playwright E2E
+
+Problem:
+
+- The app has useful smoke coverage, but the production release showed that the most valuable confidence comes from real browser and deployed-stack checks.
+- Playwright Chromium E2E coverage should be much broader, especially for public navigation, admin workflows, API-backed UI states, and release-critical paths.
+- Backend and deployment scripts also need more focused regression tests so CI catches breakage before staging or production deploys.
+
+Goal:
+
+- Add substantially more automated tests, with emphasis on Playwright Chromium E2E tests that exercise the app like a real user.
+- Keep tests reliable enough to run in PR CI and deployment gates.
+- Cover both happy paths and critical failure/authorization states.
+
+Suggested approach:
+
+- Add Playwright E2E coverage for homepage navigation, blog/project detail pages, contact flows, admin authentication, content CRUD paths, error states, and responsive/mobile layouts.
+- Add E2E checks for security-sensitive behavior such as MCP `401` without bearer token, admin-only routes, cookie flags, and CSRF/session behavior.
+- Add production-like E2E scenarios against staging after deploy, not only against local dev.
+- Add API integration tests for key endpoints, validation errors, database-backed flows, and authorization boundaries.
+- Add shell/script tests for deploy helpers, backup/restore helpers, env generation, and preflight validation.
+- Keep tests deterministic: seed data explicitly, avoid timing assumptions, and use stable selectors.
+
+Acceptance criteria:
+
+- PR CI has broader Playwright Chromium coverage for public and admin user journeys.
+- Staging deploy gate catches broken navigation, API integration, and auth-protected flows.
+- Backend tests cover critical API/MCP behavior and failure cases.
+- Deploy and backup scripts have regression checks for the mistakes already seen during release.
+- The suite remains fast enough to be useful and documents any intentionally slow tests.
