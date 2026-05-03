@@ -141,6 +141,14 @@ resource "google_project_iam_member" "github_deploy_os_admin" {
   member  = "serviceAccount:${google_service_account.github_deploy[0].email}"
 }
 
+resource "google_service_account_iam_member" "github_deploy_vm_service_account_user" {
+  count = var.enable_github_iap_deploy ? 1 : 0
+
+  service_account_id = google_service_account.vm.name
+  role               = "roles/iam.serviceAccountUser"
+  member             = "serviceAccount:${google_service_account.github_deploy[0].email}"
+}
+
 resource "google_service_account_iam_member" "github_deploy_wif" {
   count = var.enable_github_iap_deploy ? 1 : 0
 

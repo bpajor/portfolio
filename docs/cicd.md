@@ -139,7 +139,7 @@ The current low-cost deployment model does not require a GitHub-hosted GCP servi
 Recommended GCP setup:
 
 - Create a dedicated GitHub Actions deploy service account with Workload Identity Federation.
-- Grant that service account `roles/iap.tunnelResourceAccessor`, `roles/compute.viewer`, and `roles/compute.osAdminLogin` in the project.
+- Grant that service account `roles/iap.tunnelResourceAccessor`, `roles/compute.viewer`, and `roles/compute.osAdminLogin` in the project, plus `roles/iam.serviceAccountUser` on the VM service account.
 - Do not store broad GCP owner/editor keys in GitHub secrets.
 - Keep VM firewall rules limited to SSH from IAP/trusted admin source ranges and HTTP/HTTPS from Cloudflare.
 - Run Terraform from GitHub with Workload Identity Federation and a narrowly scoped service account instead of a JSON key.
