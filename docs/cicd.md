@@ -63,7 +63,7 @@ The production VM `.env` can use the public ports and a different Compose projec
 
 ```bash
 COMPOSE_PROJECT_NAME=portfolio-production
-SITE_ADDRESS=bpajor.dev, www.bpajor.dev
+SITE_ADDRESS="bpajor.dev, www.bpajor.dev"
 HTTP_PORT=80
 HTTPS_PORT=443
 ```

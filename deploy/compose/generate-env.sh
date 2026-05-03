@@ -43,14 +43,14 @@ mcp_admin_token="$(random_secret)"
 
 if [ "$mode" = "staging" ]; then
   compose_project="portfolio-staging"
-  site_address=":80"
+  site_address=':80'
   http_port="127.0.0.1:18080"
   https_port="127.0.0.1:18443"
   site_url="${STAGING_SITE_URL:-http://127.0.0.1:3000}"
   allowed_origins="$site_url"
 else
   compose_project="portfolio-production"
-  site_address="${domain}, www.${domain}"
+  site_address="\"${domain}, www.${domain}\""
   http_port="80"
   https_port="443"
   site_url="https://${domain}"
