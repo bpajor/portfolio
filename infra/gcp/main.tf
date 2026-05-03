@@ -62,7 +62,7 @@ resource "google_compute_firewall" "allow_web" {
     ports    = ["80", "443"]
   }
 
-  source_ranges = ["0.0.0.0/0"]
+  source_ranges = var.web_source_ranges
   target_tags   = [local.web_tag]
 }
 
