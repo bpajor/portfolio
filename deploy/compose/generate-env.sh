@@ -47,12 +47,14 @@ if [ "$mode" = "staging" ]; then
   http_port="127.0.0.1:18080"
   https_port="127.0.0.1:18443"
   site_url="${STAGING_SITE_URL:-http://127.0.0.1:3000}"
+  allowed_origins="$site_url"
 else
   compose_project="portfolio-production"
-  site_address="$domain"
+  site_address="${domain},www.${domain}"
   http_port="80"
   https_port="443"
   site_url="https://${domain}"
+  allowed_origins="${site_url},https://www.${domain}"
 fi
 
 cat <<EOF
@@ -64,7 +66,7 @@ HTTPS_PORT=${https_port}
 NEXT_PUBLIC_SITE_URL=${site_url}
 NEXT_PUBLIC_API_BASE_URL=/api
 
-API_ALLOWED_ORIGINS=${site_url}
+API_ALLOWED_ORIGINS=${allowed_origins}
 API_COOKIE_SECURE=true
 
 POSTGRES_USER=portfolio
@@ -79,7 +81,7 @@ TURNSTILE_VERIFY_URL=https://challenges.cloudflare.com/turnstile/v0/siteverify
 
 MCP_BEARER_TOKEN=${mcp_read_token}
 MCP_ADMIN_BEARER_TOKEN=${mcp_admin_token}
-MCP_ALLOWED_ORIGINS=${site_url}
+MCP_ALLOWED_ORIGINS=${allowed_origins}
 
 BACKUP_DIR=./backups
 BACKUP_RETENTION_DAYS=14
