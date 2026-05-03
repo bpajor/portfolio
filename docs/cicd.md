@@ -111,7 +111,7 @@ Flow:
 10. Build production Docker images on the GitHub runner and upload the image archive to the VM through IAP.
 11. Create a best-effort PostgreSQL backup on production.
 12. Deploy `main` to production over IAP-backed SSH with `docker load` and `docker compose up --no-build`.
-13. Run the same production smoke checks.
+13. Run production smoke checks through an IAP tunnel to the origin Caddy listener. This avoids false negatives from Cloudflare bot challenges against GitHub-hosted `curl` while still verifying the deployed production stack with the real production host and TLS certificate.
 
 ## VM Requirements
 
