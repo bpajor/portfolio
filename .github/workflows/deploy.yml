@@ -411,11 +411,43 @@ jobs:
             --quiet \
             --command "chmod +x '$REMOTE_DEPLOY_SCRIPT' && APP_DIR='$APP_DIR' RELEASE_IMAGE_ARCHIVE='$REMOTE_RELEASE_IMAGE_ARCHIVE' DEPLOY_MODE='production' RUN_BACKUP='true' '$REMOTE_DEPLOY_SCRIPT'"
 
-      - name: Production smoke checks
+      - name: Open production IAP tunnel
+        env:
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+          GCP_VM_NAME: ${{ vars.GCP_VM_NAME }}
+          GCP_VM_ZONE: ${{ vars.GCP_VM_ZONE }}
+          PRODUCTION_TUNNEL_LOCAL_PORT: ${{ vars.PRODUCTION_TUNNEL_LOCAL_PORT }}
+        run: |
+          set -euo pipefail
+          local_port="${PRODUCTION_TUNNEL_LOCAL_PORT:-3443}"
+
+          gcloud compute ssh "$GCP_VM_NAME" \
+            --project "$GCP_PROJECT_ID" \
+            --zone "$GCP_VM_ZONE" \
+            --tunnel-through-iap \
+            --quiet \
+            -- -fN \
+            -o ExitOnForwardFailure=yes \
+            -o ServerAliveInterval=30 \
+            -L "${local_port}:127.0.0.1:443"
+
+          echo "PRODUCTION_ORIGIN_LOCAL_PORT=${local_port}" >> "$GITHUB_ENV"
+
+      - name: Production origin smoke checks
         env:
           BASE_URL: ${{ vars.BASE_URL }}
         run: |
           set -euo pipefail
-          curl -fsS "$BASE_URL/api/healthz"
-          status="$(curl -sS -o /dev/null -w '%{http_code}' "$BASE_URL/mcp")"
+
+          public_host="${BASE_URL#https://}"
+          public_host="${public_host#http://}"
+          public_host="${public_host%%/*}"
+          public_host="${public_host%%:*}"
+
+          curl_origin=(
+            --connect-to "${public_host}:443:127.0.0.1:${PRODUCTION_ORIGIN_LOCAL_PORT}"
+          )
+
+          curl -fsS "${curl_origin[@]}" "https://${public_host}/api/healthz"
+          status="$(curl -sS -o /dev/null -w '%{http_code}' "${curl_origin[@]}" "https://${public_host}/mcp")"
           test "$status" = "401"
