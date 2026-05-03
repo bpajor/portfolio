@@ -235,12 +235,12 @@ cp .env.example .env
 Edit `.env`:
 
 ```bash
-SITE_ADDRESS=bpajor.dev
+SITE_ADDRESS=bpajor.dev,www.bpajor.dev
 NEXT_PUBLIC_SITE_URL=https://bpajor.dev
 NEXT_PUBLIC_API_BASE_URL=/api
-API_ALLOWED_ORIGINS=https://bpajor.dev
+API_ALLOWED_ORIGINS=https://bpajor.dev,https://www.bpajor.dev
 API_COOKIE_SECURE=true
-MCP_ALLOWED_ORIGINS=https://bpajor.dev
+MCP_ALLOWED_ORIGINS=https://bpajor.dev,https://www.bpajor.dev
 ```
 
 Generate strong secrets:
