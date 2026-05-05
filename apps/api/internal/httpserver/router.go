@@ -650,7 +650,7 @@ func (s Server) requireAdminCSRF(next http.Handler) http.Handler {
 			writeError(w, http.StatusForbidden, "csrf_required", "Admin mutation requires an Origin or Referer header.")
 			return
 		}
-		if !s.originAllowed(origin) {
+		if !s.originAllowed(r, origin) {
 			writeError(w, http.StatusForbidden, "csrf_invalid", "Admin mutation origin is not allowed.")
 			return
 		}
@@ -659,13 +659,48 @@ func (s Server) requireAdminCSRF(next http.Handler) http.Handler {
 	})
 }
 
-func (s Server) originAllowed(origin string) bool {
+func (s Server) originAllowed(r *http.Request, origin string) bool {
+	if requestOrigin := externalRequestOrigin(r); requestOrigin != "" && requestOrigin == origin {
+		return true
+	}
 	for _, allowed := range s.cfg.AllowedOrigins {
 		if allowed == "*" || strings.EqualFold(strings.TrimRight(allowed, "/"), origin) {
 			return true
 		}
 	}
 	return false
+}
+
+func externalRequestOrigin(r *http.Request) string {
+	host := firstHeaderValue(r.Header.Get("X-Forwarded-Host"))
+	if host == "" {
+		host = r.Host
+	}
+	host = strings.TrimSpace(host)
+	if host == "" {
+		return ""
+	}
+
+	scheme := strings.ToLower(strings.TrimSpace(firstHeaderValue(r.Header.Get("X-Forwarded-Proto"))))
+	if scheme == "" {
+		if r.TLS != nil {
+			scheme = "https"
+		} else {
+			scheme = "http"
+		}
+	}
+	if scheme != "http" && scheme != "https" {
+		return ""
+	}
+	return strings.ToLower(scheme + "://" + host)
+}
+
+func firstHeaderValue(value string) string {
+	value = strings.TrimSpace(value)
+	if before, _, found := strings.Cut(value, ","); found {
+		return strings.TrimSpace(before)
+	}
+	return value
 }
 
 func requestOrigin(r *http.Request) string {

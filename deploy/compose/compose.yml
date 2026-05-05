@@ -124,10 +124,12 @@ services:
       - |
         if psql -h postgres -U "$$POSTGRES_USER" -d "$$POSTGRES_DB" -tAc "SELECT to_regclass('public.profile')" | grep -q profile; then
           echo "database schema already exists; skipping initial migration"
-          exit 0
+        else
+          sed '/-- +goose Down/,$$d' /migrations/00001_initial_schema.sql | \
+            psql -v ON_ERROR_STOP=1 -h postgres -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"
         fi
-        sed '/-- +goose Down/,$$d' /migrations/00001_initial_schema.sql | \
-          psql -v ON_ERROR_STOP=1 -h postgres -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"
+        psql -v ON_ERROR_STOP=1 -h postgres -U "$$POSTGRES_USER" -d "$$POSTGRES_DB" \
+          -f /migrations/00002_seed_initial_posts.sql
     networks:
       - private
 
