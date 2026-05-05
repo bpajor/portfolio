@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8080";
+import { apiUrl } from "../../api-url";
 
 type Comment = {
   id: string;
@@ -16,7 +16,7 @@ export function CommentsSection({ slug }: { slug: string }) {
 
   useEffect(() => {
     let isMounted = true;
-    fetch(`${apiBaseUrl}/api/posts/${slug}/comments`)
+    fetch(apiUrl(`/posts/${slug}/comments`))
       .then((response) => (response.ok ? response.json() : []))
       .then((data: Comment[]) => {
         if (isMounted) {
