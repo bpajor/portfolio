@@ -47,6 +47,32 @@ require_secret_length() {
   fi
 }
 
+require_admin_password_strength() {
+  value="$(value_of ADMIN_PASSWORD)"
+  if [ -z "$value" ]; then
+    return
+  fi
+  if [ "${#value}" -lt 12 ]; then
+    fail "ADMIN_PASSWORD must be at least 12 characters"
+  fi
+  case "$value" in
+    *[[:lower:]]*) ;;
+    *) fail "ADMIN_PASSWORD must contain a lowercase letter" ;;
+  esac
+  case "$value" in
+    *[[:upper:]]*) ;;
+    *) fail "ADMIN_PASSWORD must contain an uppercase letter" ;;
+  esac
+  case "$value" in
+    *[[:digit:]]*) ;;
+    *) fail "ADMIN_PASSWORD must contain a digit" ;;
+  esac
+  case "$value" in
+    *[![:alnum:]]*) ;;
+    *) fail "ADMIN_PASSWORD must contain a symbol" ;;
+  esac
+}
+
 require_url_prefix() {
   key="$1"
   prefix="$2"
@@ -89,9 +115,10 @@ do
   require_value "$key"
 done
 
-for key in POSTGRES_PASSWORD ADMIN_PASSWORD SESSION_SECRET TURNSTILE_SECRET_KEY MCP_BEARER_TOKEN MCP_ADMIN_BEARER_TOKEN; do
+for key in POSTGRES_PASSWORD SESSION_SECRET TURNSTILE_SECRET_KEY MCP_BEARER_TOKEN MCP_ADMIN_BEARER_TOKEN; do
   require_secret_length "$key" 24
 done
+require_admin_password_strength
 
 if [ "$(value_of MCP_BEARER_TOKEN)" = "$(value_of MCP_ADMIN_BEARER_TOKEN)" ]; then
   fail "MCP_BEARER_TOKEN and MCP_ADMIN_BEARER_TOKEN must be different"
