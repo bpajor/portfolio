@@ -427,7 +427,13 @@ func (s Server) adminGetPost(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "post_unavailable", "Post is temporarily unavailable.")
 		return
 	}
-	writeJSON(w, http.StatusOK, postModelToResponse(post, nil))
+	tags, err := s.postTags(r.Context(), post.ID)
+	if err != nil {
+		s.logger.Error("admin get post tags failed", "error", err)
+		writeError(w, http.StatusInternalServerError, "post_unavailable", "Post is temporarily unavailable.")
+		return
+	}
+	writeJSON(w, http.StatusOK, postModelToResponse(post, tags))
 }
 
 func (s Server) adminCreatePost(w http.ResponseWriter, r *http.Request) {
@@ -578,6 +584,24 @@ func (s Server) replacePostTags(ctx context.Context, postID uuid.UUID, tags []st
 		return nil
 	}
 	return s.queries.AddPostTags(ctx, apidb.AddPostTagsParams{PostID: postID, Tags: tags})
+}
+
+func (s Server) postTags(ctx context.Context, postID uuid.UUID) ([]string, error) {
+	rows, err := s.db.Query(ctx, "SELECT tag FROM post_tags WHERE post_id = $1 ORDER BY tag", postID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	tags := []string{}
+	for rows.Next() {
+		var tag string
+		if err := rows.Scan(&tag); err != nil {
+			return nil, err
+		}
+		tags = append(tags, tag)
+	}
+	return tags, rows.Err()
 }
 
 func (s Server) requireAdmin(next http.Handler) http.Handler {
