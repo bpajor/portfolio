@@ -108,7 +108,7 @@ func TestAdminCSRFGuard(t *testing.T) {
 		{name: "missing origin", method: http.MethodPost, want: http.StatusForbidden, code: "csrf_required"},
 		{name: "allowed origin", method: http.MethodPost, origin: "http://localhost:3000", want: http.StatusNoContent},
 		{name: "allowed referer", method: http.MethodPut, referer: "http://localhost:3000/admin/posts", want: http.StatusNoContent},
-		{name: "forwarded same origin from cloud shell preview", method: http.MethodPost, origin: "https://3000-test.cloudshell.dev", host: "3000-test.cloudshell.dev", proto: "https", want: http.StatusNoContent},
+		{name: "forwarded same host through http upstream", method: http.MethodPost, origin: "https://3000-test.cloudshell.dev", host: "3000-test.cloudshell.dev", proto: "http", want: http.StatusNoContent},
 		{name: "disallowed origin", method: http.MethodDelete, origin: "https://evil.example", want: http.StatusForbidden, code: "csrf_invalid"},
 		{name: "forwarded different origin still blocked", method: http.MethodPost, origin: "https://evil.example", host: "3000-test.cloudshell.dev", proto: "https", want: http.StatusForbidden, code: "csrf_invalid"},
 		{name: "null origin", method: http.MethodPost, origin: "null", want: http.StatusForbidden, code: "csrf_required"},

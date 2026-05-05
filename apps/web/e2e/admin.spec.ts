@@ -155,6 +155,58 @@ test.describe("admin surface", () => {
     });
   });
 
+  test("opens recent writing from dashboard with the API post id", async ({ page }) => {
+    await signInByCookie(page);
+
+    await page.route("**/api/admin/posts", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify([
+          {
+            id: "post-123",
+            slug: "admin-e2e-post",
+            title: "Admin E2E Post",
+            excerpt: "Initial excerpt.",
+            status: "published",
+            publishedAt: "2026-05-05T10:00:00Z",
+            seoTitle: "Admin E2E Post",
+            seoDescription: "Initial SEO description.",
+            tags: ["Admin"],
+            createdAt: "2026-05-05T10:00:00Z",
+            updatedAt: "2026-05-05T10:00:00Z"
+          }
+        ])
+      });
+    });
+    await page.route("**/api/admin/posts/post-123", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          id: "post-123",
+          slug: "admin-e2e-post",
+          title: "Admin E2E Post",
+          excerpt: "Initial excerpt.",
+          contentMarkdown: "## Intro\n\nInitial body.",
+          status: "published",
+          publishedAt: "2026-05-05T10:00:00Z",
+          seoTitle: "Admin E2E Post",
+          seoDescription: "Initial SEO description.",
+          tags: ["Admin"],
+          createdAt: "2026-05-05T10:00:00Z",
+          updatedAt: "2026-05-05T10:00:00Z"
+        })
+      });
+    });
+
+    await page.goto("/admin");
+    await page.getByRole("link", { name: /Admin E2E Post/ }).click();
+
+    await expect(page).toHaveURL(/\/admin\/posts\/post-123/);
+    await expect(page.getByRole("textbox", { name: "Title", exact: true })).toHaveValue("Admin E2E Post");
+  });
+
   test("moderates pending comments", async ({ page }) => {
     await signInByCookie(page);
 
@@ -188,8 +240,16 @@ test.describe("admin surface", () => {
 
     await page.goto("/admin/comments");
     await expect(page.getByText("Looks useful.")).toBeVisible();
-    await page.getByRole("button", { name: "Approve", exact: true }).click();
+    const [request] = await Promise.all([
+      page.waitForRequest(
+        (nextRequest) =>
+          nextRequest.method() === "PUT" &&
+          nextRequest.url().includes("/api/admin/comments/comment-123/moderate")
+      ),
+      page.getByRole("button", { name: "Approve", exact: true }).click()
+    ]);
 
+    expect((request.postDataJSON() as { status: string }).status).toBe("approved");
     expect(moderatedStatus).toBe("approved");
   });
 });

@@ -62,8 +62,13 @@ inserted AS (
     seo_title,
     seo_description
   FROM seed_posts
-  WHERE NOT EXISTS (SELECT 1 FROM posts)
+  ON CONFLICT (slug) DO NOTHING
   RETURNING id, slug
+),
+seeded AS (
+  SELECT posts.id, posts.slug
+  FROM posts
+  JOIN seed_posts ON seed_posts.slug = posts.slug
 ),
 seed_tags(slug, tag) AS (
   VALUES
@@ -75,7 +80,7 @@ seed_tags(slug, tag) AS (
     ('mcp-as-a-portfolio-interface', 'Go')
 )
 INSERT INTO post_tags (post_id, tag)
-SELECT inserted.id, seed_tags.tag
-FROM inserted
-JOIN seed_tags ON seed_tags.slug = inserted.slug
+SELECT seeded.id, seed_tags.tag
+FROM seeded
+JOIN seed_tags ON seed_tags.slug = seeded.slug
 ON CONFLICT DO NOTHING;
