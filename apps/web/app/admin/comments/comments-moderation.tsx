@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Panel } from "../_components/admin-shell";
 
-const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8080";
+import { apiUrl } from "../../api-url";
 
 type AdminComment = {
   id: string;
@@ -22,7 +22,7 @@ export function CommentsModeration() {
   const [comments, setComments] = useState<AdminComment[] | null>(null);
 
   async function fetchComments(nextStatus: string) {
-    const response = await fetch(`${apiBaseUrl}/api/admin/comments?status=${nextStatus}`, {
+    const response = await fetch(apiUrl(`/admin/comments?status=${nextStatus}`), {
       credentials: "include"
     });
     if (!response.ok) {
@@ -46,7 +46,7 @@ export function CommentsModeration() {
   }, [status]);
 
   async function moderate(commentId: string, nextStatus: string) {
-    const response = await fetch(`${apiBaseUrl}/api/admin/comments/${commentId}/moderate`, {
+    const response = await fetch(apiUrl(`/admin/comments/${commentId}/moderate`), {
       method: "PUT",
       credentials: "include",
       headers: { "Content-Type": "application/json" },
