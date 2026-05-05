@@ -155,6 +155,60 @@ test.describe("admin surface", () => {
     });
   });
 
+  test("archives an existing blog post with archived feedback", async ({ page }) => {
+    await signInByCookie(page);
+
+    let payload: Record<string, unknown> | null = null;
+    await page.route("**/api/admin/posts/post-archive", async (route) => {
+      if (route.request().method() === "GET") {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            id: "post-archive",
+            slug: "admin-e2e-post",
+            title: "Admin E2E Post",
+            excerpt: "Initial excerpt.",
+            contentMarkdown: "## Intro\n\nInitial body.",
+            status: "published",
+            publishedAt: "2026-05-05T10:00:00Z",
+            seoTitle: "Admin E2E Post",
+            seoDescription: "Initial SEO description.",
+            tags: ["Admin"],
+            createdAt: "2026-05-05T10:00:00Z",
+            updatedAt: "2026-05-05T10:00:00Z"
+          })
+        });
+        return;
+      }
+
+      payload = route.request().postDataJSON() as Record<string, unknown>;
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          id: "post-archive",
+          slug: "admin-e2e-post",
+          title: "Admin E2E Post",
+          excerpt: "Initial excerpt.",
+          contentMarkdown: "## Intro\n\nInitial body.",
+          status: "archived",
+          seoTitle: "Admin E2E Post",
+          seoDescription: "Initial SEO description.",
+          tags: ["Admin"],
+          createdAt: "2026-05-05T10:00:00Z",
+          updatedAt: "2026-05-05T10:05:00Z"
+        })
+      });
+    });
+
+    await page.goto("/admin/posts/post-archive");
+    await page.getByRole("button", { name: "Archive" }).click();
+
+    await expect(page.getByText("Post archived.")).toBeVisible();
+    expect(payload).toMatchObject({ status: "archived" });
+  });
+
   test("opens recent writing from dashboard with the API post id", async ({ page }) => {
     await signInByCookie(page);
 
@@ -205,6 +259,74 @@ test.describe("admin surface", () => {
 
     await expect(page).toHaveURL(/\/admin\/posts\/post-123/);
     await expect(page.getByRole("textbox", { name: "Title", exact: true })).toHaveValue("Admin E2E Post");
+  });
+
+  test("counts published posts from the admin API on the dashboard", async ({ page }) => {
+    await signInByCookie(page);
+
+    await page.route("**/api/admin/posts", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify([
+          {
+            id: "post-1",
+            slug: "published-one",
+            title: "Published One",
+            excerpt: "One.",
+            status: "published",
+            publishedAt: "2026-05-05T10:00:00Z",
+            seoTitle: "Published One",
+            seoDescription: "One.",
+            tags: [],
+            createdAt: "2026-05-05T10:00:00Z",
+            updatedAt: "2026-05-05T10:00:00Z"
+          },
+          {
+            id: "post-2",
+            slug: "published-two",
+            title: "Published Two",
+            excerpt: "Two.",
+            status: "published",
+            publishedAt: "2026-05-05T10:00:00Z",
+            seoTitle: "Published Two",
+            seoDescription: "Two.",
+            tags: [],
+            createdAt: "2026-05-05T10:00:00Z",
+            updatedAt: "2026-05-05T10:00:00Z"
+          },
+          {
+            id: "post-3",
+            slug: "published-three",
+            title: "Published Three",
+            excerpt: "Three.",
+            status: "published",
+            publishedAt: "2026-05-05T10:00:00Z",
+            seoTitle: "Published Three",
+            seoDescription: "Three.",
+            tags: [],
+            createdAt: "2026-05-05T10:00:00Z",
+            updatedAt: "2026-05-05T10:00:00Z"
+          },
+          {
+            id: "post-4",
+            slug: "archived-four",
+            title: "Archived Four",
+            excerpt: "Four.",
+            status: "archived",
+            seoTitle: "Archived Four",
+            seoDescription: "Four.",
+            tags: [],
+            createdAt: "2026-05-05T10:00:00Z",
+            updatedAt: "2026-05-05T10:00:00Z"
+          }
+        ])
+      });
+    });
+
+    await page.goto("/admin");
+
+    await expect(page.getByText("Published posts").locator("..").getByText("3", { exact: true })).toBeVisible();
   });
 
   test("moderates pending comments", async ({ page }) => {
