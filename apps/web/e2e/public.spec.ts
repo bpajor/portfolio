@@ -43,4 +43,36 @@ test.describe("public website", () => {
     await expect(page.getByText(/public comments are read-only/i)).toBeVisible();
     await expect(page.getByRole("button", { name: /submit comment/i })).toHaveCount(0);
   });
+
+  test("renders API-published posts on the public blog", async ({ page }) => {
+    const post = {
+      id: "post-123",
+      slug: "admin-e2e-post",
+      title: "Admin E2E Post",
+      excerpt: "Published from the admin panel.",
+      contentMarkdown: "## Intro\n\nPublished body.",
+      status: "published",
+      publishedAt: "2026-05-05T10:00:00Z",
+      tags: ["Admin", "E2E"],
+      createdAt: "2026-05-05T10:00:00Z",
+      updatedAt: "2026-05-05T10:00:00Z"
+    };
+
+    await page.route("**/api/posts", async (route) => {
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify([post]) });
+    });
+    await page.route("**/api/posts/admin-e2e-post", async (route) => {
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(post) });
+    });
+    await page.route("**/api/posts/admin-e2e-post/comments", async (route) => {
+      await route.fulfill({ status: 200, contentType: "application/json", body: "[]" });
+    });
+
+    await page.goto("/blog");
+    await expect(page.getByRole("link", { name: /admin e2e post/i })).toBeVisible();
+
+    await page.goto("/blog/admin-e2e-post");
+    await expect(page.getByRole("heading", { name: "Admin E2E Post" })).toBeVisible();
+    await expect(page.getByText("Published body.")).toBeVisible();
+  });
 });
