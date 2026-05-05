@@ -10,7 +10,7 @@ import { PublicPost, formatPublishedDate, readingTime, staticPostToPublicPost } 
 const fallbackPosts = staticPosts.map(staticPostToPublicPost);
 
 export function BlogList() {
-  const [posts, setPosts] = useState<PublicPost[]>(fallbackPosts);
+  const [posts, setPosts] = useState<PublicPost[] | null>(null);
 
   useEffect(() => {
     let ignore = false;
@@ -18,7 +18,7 @@ export function BlogList() {
     fetch(apiUrl("/posts"))
       .then((response) => (response.ok ? response.json() : fallbackPosts))
       .then((nextPosts: PublicPost[]) => {
-        if (!ignore && nextPosts.length > 0) {
+        if (!ignore) {
           setPosts(nextPosts);
         }
       })
@@ -32,6 +32,35 @@ export function BlogList() {
       ignore = true;
     };
   }, []);
+
+  if (posts === null) {
+    return (
+      <section className="mx-auto grid max-w-6xl gap-5 px-5 pb-16 md:grid-cols-2" aria-label="Loading writing">
+        {Array.from({ length: 2 }).map((_, index) => (
+          <div key={index} className="rounded-2xl border border-white/10 bg-slate-900/80 p-5 shadow-xl shadow-black/20 md:p-6">
+            <div className="h-4 w-32 rounded bg-slate-800" />
+            <div className="mt-5 h-7 w-4/5 rounded bg-slate-800" />
+            <div className="mt-4 space-y-2">
+              <div className="h-4 rounded bg-slate-800" />
+              <div className="h-4 w-3/4 rounded bg-slate-800" />
+            </div>
+            <div className="mt-6 flex gap-2">
+              <div className="h-6 w-16 rounded-full bg-slate-800" />
+              <div className="h-6 w-20 rounded-full bg-slate-800" />
+            </div>
+          </div>
+        ))}
+      </section>
+    );
+  }
+
+  if (posts.length === 0) {
+    return (
+      <section className="mx-auto max-w-6xl px-5 pb-16">
+        <p className="rounded-2xl border border-white/10 bg-slate-900/80 p-6 text-sm text-slate-400">No writing published yet.</p>
+      </section>
+    );
+  }
 
   return (
     <section className="mx-auto grid max-w-6xl gap-5 px-5 pb-16 md:grid-cols-2">

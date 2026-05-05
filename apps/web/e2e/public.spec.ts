@@ -75,4 +75,37 @@ test.describe("public website", () => {
     await expect(page.getByRole("heading", { name: "Admin E2E Post" })).toBeVisible();
     await expect(page.getByText("Published body.")).toBeVisible();
   });
+
+  test("does not flash static placeholder posts while API posts load", async ({ page }) => {
+    const post = {
+      id: "post-loading",
+      slug: "api-loaded-writing",
+      title: "API Loaded Writing",
+      excerpt: "Loaded after the initial blog render.",
+      contentMarkdown: "Loaded body.",
+      status: "published",
+      publishedAt: "2026-05-05T12:00:00Z",
+      tags: ["API"],
+      createdAt: "2026-05-05T12:00:00Z",
+      updatedAt: "2026-05-05T12:00:00Z"
+    };
+    let releasePosts!: () => void;
+    const postsBlocked = new Promise<void>((resolve) => {
+      releasePosts = resolve;
+    });
+
+    await page.route("**/api/posts", async (route) => {
+      await postsBlocked;
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify([post]) });
+    });
+
+    await page.goto("/blog");
+
+    await expect(page.getByRole("heading", { name: /technical writing/i })).toBeVisible();
+    await expect(page.getByRole("link", { name: /low-cost production portfolio/i })).toHaveCount(0);
+    await expect(page.getByRole("link", { name: /mcp as a portfolio interface/i })).toHaveCount(0);
+
+    releasePosts();
+    await expect(page.getByRole("link", { name: /api loaded writing/i })).toBeVisible();
+  });
 });
