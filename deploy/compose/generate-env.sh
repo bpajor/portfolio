@@ -47,7 +47,7 @@ if [ "$mode" = "staging" ]; then
   http_port="127.0.0.1:18080"
   https_port="127.0.0.1:18443"
   site_url="${STAGING_SITE_URL:-http://127.0.0.1:3000}"
-  allowed_origins="$site_url"
+  allowed_origins="${site_url},https://*.cloudshell.dev"
 else
   compose_project="portfolio-production"
   site_address="\"${domain}, www.${domain}\""
