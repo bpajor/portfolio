@@ -9,6 +9,12 @@ type PostFormProps = {
   post?: AdminPost;
 };
 
+const successMessages: Record<PostStatus, string> = {
+  archived: "Post archived.",
+  draft: "Draft saved.",
+  published: "Post published."
+};
+
 export function PostForm({ post }: PostFormProps) {
   const formRef = useRef<HTMLFormElement>(null);
   const router = useRouter();
@@ -41,7 +47,7 @@ export function PostForm({ post }: PostFormProps) {
     }
 
     const saved = (await response.json()) as AdminPost;
-    setMessage(status === "published" ? "Post published." : "Draft saved.");
+    setMessage(successMessages[status]);
     if (!post) {
       router.push(`/admin/posts/${saved.id}`);
     }

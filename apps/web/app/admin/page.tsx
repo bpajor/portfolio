@@ -1,32 +1,14 @@
 import Link from "next/link";
-import { FileText, MessageSquare, ShieldCheck, Sparkles } from "lucide-react";
 import { AdminHeader, AdminShell, Panel } from "./_components/admin-shell";
+import { AdminStats } from "./admin-stats";
 import { RecentWriting } from "./recent-writing";
-import { posts, projects } from "../site-data";
-
-const stats = [
-  { label: "Published posts", value: posts.length, icon: FileText },
-  { label: "Featured projects", value: projects.length, icon: Sparkles },
-  { label: "Pending comments", value: 0, icon: MessageSquare },
-  { label: "Security checks", value: 4, icon: ShieldCheck }
-];
+import { projects } from "../site-data";
 
 export default function AdminDashboardPage() {
   return (
     <AdminShell>
       <AdminHeader title="Publishing dashboard" body="A compact control surface for posts, portfolio projects, media, comments, and site settings." />
-      <div className="grid gap-4 md:grid-cols-4">
-        {stats.map((stat) => {
-          const Icon = stat.icon;
-          return (
-            <Panel key={stat.label}>
-              <Icon className="text-sky-300" size={20} aria-hidden="true" />
-              <p className="mt-5 text-3xl font-semibold text-white">{stat.value}</p>
-              <p className="mt-1 text-sm text-slate-400">{stat.label}</p>
-            </Panel>
-          );
-        })}
-      </div>
+      <AdminStats featuredProjectsCount={projects.length} />
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_320px]">
         <Panel>
