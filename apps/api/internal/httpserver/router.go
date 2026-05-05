@@ -663,6 +663,9 @@ func (s Server) originAllowed(r *http.Request, origin string) bool {
 	if requestOrigin := externalRequestOrigin(r); requestOrigin != "" && requestOrigin == origin {
 		return true
 	}
+	if requestHost := externalRequestHost(r); requestHost != "" && requestHost == originHost(origin) {
+		return true
+	}
 	for _, allowed := range s.cfg.AllowedOrigins {
 		if allowed == "*" || strings.EqualFold(strings.TrimRight(allowed, "/"), origin) {
 			return true
@@ -672,11 +675,7 @@ func (s Server) originAllowed(r *http.Request, origin string) bool {
 }
 
 func externalRequestOrigin(r *http.Request) string {
-	host := firstHeaderValue(r.Header.Get("X-Forwarded-Host"))
-	if host == "" {
-		host = r.Host
-	}
-	host = strings.TrimSpace(host)
+	host := externalRequestHost(r)
 	if host == "" {
 		return ""
 	}
@@ -693,6 +692,22 @@ func externalRequestOrigin(r *http.Request) string {
 		return ""
 	}
 	return strings.ToLower(scheme + "://" + host)
+}
+
+func externalRequestHost(r *http.Request) string {
+	host := firstHeaderValue(r.Header.Get("X-Forwarded-Host"))
+	if host == "" {
+		host = r.Host
+	}
+	return strings.ToLower(strings.TrimSpace(host))
+}
+
+func originHost(origin string) string {
+	u, err := url.Parse(origin)
+	if err != nil {
+		return ""
+	}
+	return strings.ToLower(strings.TrimSpace(u.Host))
 }
 
 func firstHeaderValue(value string) string {

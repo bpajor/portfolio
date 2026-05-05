@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { FileText, MessageSquare, ShieldCheck, Sparkles } from "lucide-react";
 import { AdminHeader, AdminShell, Panel } from "./_components/admin-shell";
+import { RecentWriting } from "./recent-writing";
 import { posts, projects } from "../site-data";
 
 const stats = [
@@ -33,14 +34,7 @@ export default function AdminDashboardPage() {
             <h2 className="text-lg font-semibold text-white">Recent writing</h2>
             <Link href="/admin/posts/new" className="rounded-md bg-sky-300 px-3 py-2 text-sm font-semibold text-slate-950 hover:bg-sky-200">New post</Link>
           </div>
-          <div className="mt-5 divide-y divide-white/10">
-            {posts.map((post) => (
-              <Link key={post.slug} href={`/admin/posts/${post.slug}`} className="block py-4 hover:text-sky-300">
-                <p className="font-medium text-white">{post.title}</p>
-                <p className="mt-1 text-sm text-slate-500">{post.publishedAt} / {post.readingTime}</p>
-              </Link>
-            ))}
-          </div>
+          <RecentWriting />
         </Panel>
 
         <Panel>
