@@ -1,0 +1,189 @@
+{
+  "tasks": [
+    {
+      "id": "ci-context-aware-workflows",
+      "title": "Run CI jobs only for relevant change contexts",
+      "priority": "high",
+      "goal": "Reduce PR and deploy feedback time by skipping unrelated jobs.",
+      "scope": [
+        "Detect changed paths in GitHub Actions.",
+        "Run web lint, tests, build, and E2E only for web-affecting changes.",
+        "Run Go API and MCP tests only for backend-affecting changes.",
+        "Run Terraform validation and plan only for infrastructure changes.",
+        "Run lightweight checks for documentation-only changes."
+      ],
+      "acceptanceCriteria": [
+        "Docs-only PRs do not run full web, API, E2E, or Terraform jobs.",
+        "Web-only PRs run web jobs and skip Go/Terraform unless shared files changed.",
+        "Infra-only PRs run Terraform jobs and skip app E2E.",
+        "Shared files trigger all impacted jobs.",
+        "Workflow summaries state which jobs were skipped and why."
+      ],
+      "tests": [
+        "Unit or shell tests for path classification if extracted.",
+        "Manual workflow dispatch validation.",
+        "PR validation with docs-only, web-only, API-only, and infra-only changes."
+      ]
+    },
+    {
+      "id": "blog-ssr-api-seo",
+      "title": "Render API-published blog posts in SEO-visible server paths",
+      "priority": "high",
+      "goal": "Make admin-published posts visible to users, Google, crawlers, RSS, sitemap, and LLM assets.",
+      "scope": [
+        "Move public blog list and detail loading toward server-side data fetching.",
+        "Expose a stable helper for server-side post reads.",
+        "Update sitemap.xml to include DB-published posts.",
+        "Update rss.xml to include DB-published posts.",
+        "Update llms.txt and ai-context.json to include DB-published posts.",
+        "Generate metadata, canonical URLs, and Open Graph tags for DB-published posts."
+      ],
+      "acceptanceCriteria": [
+        "A post published from admin appears in rendered HTML for /blog.",
+        "A post published from admin has a crawlable /blog/{slug} page.",
+        "Published posts appear in sitemap.xml and rss.xml.",
+        "Published posts appear in llms.txt and ai-context.json.",
+        "Static fallback still works if API is unavailable during local development."
+      ],
+      "tests": [
+        "Unit tests for API-to-SEO post mapping.",
+        "API integration tests for published post fields needed by SEO.",
+        "Playwright E2E checking rendered HTML contains an API-published post.",
+        "Playwright or API checks for sitemap, RSS, llms.txt, and ai-context.json."
+      ]
+    },
+    {
+      "id": "public-comment-submission",
+      "title": "Enable public comment submission with Turnstile protection",
+      "priority": "medium",
+      "goal": "Allow readers to submit comments safely while keeping moderation mandatory.",
+      "scope": [
+        "Build the public comment form below blog posts.",
+        "Integrate the Cloudflare Turnstile widget and client token.",
+        "Submit comments to the existing backend endpoint.",
+        "Show pending moderation confirmation.",
+        "Keep approved-only comments visible publicly.",
+        "Handle honeypot spam rejection, validation errors, and rate limits."
+      ],
+      "acceptanceCriteria": [
+        "Readers can submit valid comments and receive a pending moderation message.",
+        "Invalid or empty comments show clear validation feedback.",
+        "Submitted comments are not public until approved.",
+        "Admin can approve comments and they appear publicly.",
+        "Honeypot submissions are rejected."
+      ],
+      "tests": [
+        "Unit tests for comment form validation and payload mapping.",
+        "API integration tests for pending comment creation.",
+        "Playwright E2E for submit to pending message.",
+        "Playwright E2E for admin approve to public visibility."
+      ]
+    },
+    {
+      "id": "admin-auth-ops",
+      "title": "Improve admin account operations",
+      "priority": "medium",
+      "goal": "Make admin access manageable without manual database edits.",
+      "scope": [
+        "Add a logout button to the admin shell.",
+        "Add a change password page and form.",
+        "Add a backend endpoint for password changes.",
+        "Add a safe admin password reset script for VM operations.",
+        "Invalidate or clearly handle existing sessions after password changes.",
+        "Document the admin account recovery flow."
+      ],
+      "acceptanceCriteria": [
+        "Admin can log out from the UI.",
+        "Admin can change password after entering the current password.",
+        "Old password no longer works after a password change.",
+        "Existing sessions are revoked or clearly handled.",
+        "Reset script updates the password safely with a backup warning."
+      ],
+      "tests": [
+        "Unit tests for password payload validation.",
+        "API tests for password change success and failure.",
+        "Playwright E2E for logout.",
+        "Playwright E2E for the change password flow."
+      ]
+    },
+    {
+      "id": "admin-media-crud",
+      "title": "Implement admin media library",
+      "priority": "medium",
+      "goal": "Allow images and assets to be uploaded and reused in posts or projects.",
+      "scope": [
+        "Implement a media upload endpoint or wire the existing media model.",
+        "Store media metadata in the database.",
+        "Store files in configured storage or a VM volume as the first phase.",
+        "Build /admin/media list, upload, and delete UI.",
+        "Allow selecting media in the post editor.",
+        "Add alt text editing."
+      ],
+      "acceptanceCriteria": [
+        "Admin can upload an image.",
+        "Uploaded image appears in the media list.",
+        "Admin can set and edit alt text.",
+        "Admin can insert or reference an image in a post.",
+        "Deleted media is no longer selectable."
+      ],
+      "tests": [
+        "Unit tests for media form validation.",
+        "API integration tests for upload, list, and delete metadata.",
+        "Playwright E2E for upload, list, and select.",
+        "Accessibility checks for required alt text."
+      ]
+    },
+    {
+      "id": "admin-projects-crud",
+      "title": "Implement admin projects CRUD",
+      "priority": "medium",
+      "goal": "Manage portfolio projects from admin instead of static site data.",
+      "scope": [
+        "Add or wire project database queries and endpoints.",
+        "Build admin project list, create, edit, and archive UI.",
+        "Render public projects from API/DB with static fallback.",
+        "Update SEO and GEO assets to include DB projects."
+      ],
+      "acceptanceCriteria": [
+        "Admin can create a project.",
+        "Admin can edit project content, stack, and signals.",
+        "Published projects appear on /projects and /projects/{slug}.",
+        "Archived projects are hidden publicly.",
+        "Sitemap and AI context include published projects."
+      ],
+      "tests": [
+        "Unit tests for project payload mapping.",
+        "API integration tests for project CRUD.",
+        "Playwright E2E for create, edit, and archive project.",
+        "Public E2E for project visibility."
+      ]
+    },
+    {
+      "id": "staging-real-admin-e2e",
+      "title": "Run real staging admin E2E after deploy",
+      "priority": "high",
+      "goal": "Verify deployed staging with the real API, database, Caddy, cookies, and IAP tunnel.",
+      "scope": [
+        "Add a staging-only Playwright suite using the deployed staging URL or IAP tunnel.",
+        "Login with staging admin credentials from GitHub environment secrets.",
+        "Create a unique test post.",
+        "Publish the test post.",
+        "Verify it appears publicly.",
+        "Create or seed a comment and moderate it.",
+        "Clean up test content after the run."
+      ],
+      "acceptanceCriteria": [
+        "Deploy workflow validates real staging login.",
+        "Deploy workflow validates the real post publish path.",
+        "Deploy workflow validates real public blog visibility.",
+        "Deploy workflow validates real comment moderation.",
+        "Test data is uniquely named and cleaned up or archived."
+      ],
+      "tests": [
+        "Playwright staging E2E with the real backend.",
+        "Cleanup verification step.",
+        "Failure artifact upload with traces and screenshots."
+      ]
+    }
+  ]
+}

@@ -2,6 +2,8 @@
 
 This backlog captures non-blocking work discovered during the first production release. These tasks should be turned into GitHub issues or PRs when the release path is stable.
 
+The machine-readable backlog lives in [`follow-up-tasks.json`](./follow-up-tasks.json). Keep that file updated when adding implementation-ready tasks with scope, acceptance criteria, and tests.
+
 ## 1. Optimize Deploy Builds by Changed Surface
 
 Problem:
