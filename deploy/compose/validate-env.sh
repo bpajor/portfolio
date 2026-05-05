@@ -142,6 +142,16 @@ case "$mode" in
       *) fail "staging HTTPS_PORT must bind to 127.0.0.1" ;;
     esac
     require_url_prefix NEXT_PUBLIC_SITE_URL "http://127.0.0.1:"
+    require_url_prefix API_ALLOWED_ORIGINS "$(value_of NEXT_PUBLIC_SITE_URL)"
+    require_url_prefix MCP_ALLOWED_ORIGINS "$(value_of NEXT_PUBLIC_SITE_URL)"
+    case "$(value_of API_ALLOWED_ORIGINS)" in
+      *"https://*.cloudshell.dev"*) ;;
+      *) fail "staging API_ALLOWED_ORIGINS must include https://*.cloudshell.dev for Cloud Shell preview testing" ;;
+    esac
+    case "$(value_of MCP_ALLOWED_ORIGINS)" in
+      *"https://*.cloudshell.dev"*) ;;
+      *) fail "staging MCP_ALLOWED_ORIGINS must include https://*.cloudshell.dev for Cloud Shell preview testing" ;;
+    esac
     ;;
   production)
     [ "$(value_of COMPOSE_PROJECT_NAME)" = "portfolio-production" ] || fail "production COMPOSE_PROJECT_NAME must be portfolio-production"
