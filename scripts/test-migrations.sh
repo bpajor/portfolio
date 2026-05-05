@@ -38,10 +38,19 @@ fi
 
 sed '/-- +goose Down/,$d' "$repo_root/db/migrations/00001_initial_schema.sql" |
   docker exec -i "$container" psql -v ON_ERROR_STOP=1 -U "$user" -d "$database" >/dev/null
+docker exec -i "$container" psql -v ON_ERROR_STOP=1 -U "$user" -d "$database" \
+  -f /dev/stdin < "$repo_root/db/migrations/00002_seed_initial_posts.sql" >/dev/null
+docker exec -i "$container" psql -v ON_ERROR_STOP=1 -U "$user" -d "$database" \
+  -f /dev/stdin < "$repo_root/db/migrations/00002_seed_initial_posts.sql" >/dev/null
 
 schema_check="$(docker exec "$container" psql -tAc "SELECT to_regclass('public.profile')" -U "$user" -d "$database" | tr -d '[:space:]')"
 if [[ "$schema_check" != "profile" ]]; then
   echo "Up migration did not create public.profile" >&2
+  exit 1
+fi
+post_count="$(docker exec "$container" psql -tAc "SELECT count(*) FROM posts" -U "$user" -d "$database" | tr -d '[:space:]')"
+if [[ "$post_count" != "2" ]]; then
+  echo "Seed migration post count = $post_count, want 2" >&2
   exit 1
 fi
 
