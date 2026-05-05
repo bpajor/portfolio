@@ -651,6 +651,22 @@ func (s Server) requireAdminCSRF(next http.Handler) http.Handler {
 			return
 		}
 		if !s.originAllowed(r, origin) {
+			logger := s.logger
+			if logger == nil {
+				logger = slog.Default()
+			}
+			logger.Warn(
+				"admin csrf rejected",
+				"origin", origin,
+				"origin_host", originHost(origin),
+				"request_host", r.Host,
+				"external_host", externalRequestHost(r),
+				"external_origin", externalRequestOrigin(r),
+				"x_forwarded_host", r.Header.Get("X-Forwarded-Host"),
+				"x_forwarded_proto", r.Header.Get("X-Forwarded-Proto"),
+				"referer", r.Header.Get("Referer"),
+				"allowed_origins", strings.Join(s.cfg.AllowedOrigins, ","),
+			)
 			writeError(w, http.StatusForbidden, "csrf_invalid", "Admin mutation origin is not allowed.")
 			return
 		}
