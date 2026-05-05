@@ -2,6 +2,19 @@ import { expect, test } from "@playwright/test";
 
 test.describe("public website", () => {
   test("renders core public routes", async ({ page }) => {
+    const blogPost = {
+      id: "core-route-post",
+      slug: "core-route-writing",
+      title: "Core Route Writing",
+      excerpt: "Deterministic blog content for the public route smoke test.",
+      contentMarkdown: "Core route body.",
+      status: "published",
+      publishedAt: "2026-05-05T13:00:00Z",
+      tags: ["Core"],
+      createdAt: "2026-05-05T13:00:00Z",
+      updatedAt: "2026-05-05T13:00:00Z"
+    };
+
     await page.goto("/");
     await expect(page.getByRole("heading", { name: /building reliable backend platforms/i })).toBeVisible();
 
@@ -9,9 +22,13 @@ test.describe("public website", () => {
     await expect(page.getByRole("heading", { name: /practical systems/i })).toBeVisible();
     await expect(page.getByRole("link", { name: /pay management system/i })).toBeVisible();
 
+    await page.route("**/api/posts", async (route) => {
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify([blogPost]) });
+    });
+
     await page.goto("/blog");
     await expect(page.getByRole("heading", { name: /technical writing/i })).toBeVisible();
-    await expect(page.getByRole("link", { name: /low-cost production portfolio/i })).toBeVisible();
+    await expect(page.getByRole("link", { name: /core route writing/i })).toBeVisible();
 
     await page.goto("/contact");
     await expect(page.getByRole("heading", { name: /let's talk about backend/i })).toBeVisible();
