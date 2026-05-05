@@ -89,11 +89,6 @@ func TestDecodeJSONRejectsUnknownFields(t *testing.T) {
 }
 
 func TestAdminCSRFGuard(t *testing.T) {
-	server := Server{cfg: testConfig()}
-	handler := server.requireAdminCSRF(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusNoContent)
-	}))
-
 	tests := []struct {
 		name    string
 		method  string
@@ -101,6 +96,7 @@ func TestAdminCSRFGuard(t *testing.T) {
 		referer string
 		host    string
 		proto   string
+		allowed []string
 		want    int
 		code    string
 	}{
@@ -108,14 +104,24 @@ func TestAdminCSRFGuard(t *testing.T) {
 		{name: "missing origin", method: http.MethodPost, want: http.StatusForbidden, code: "csrf_required"},
 		{name: "allowed origin", method: http.MethodPost, origin: "http://localhost:3000", want: http.StatusNoContent},
 		{name: "allowed referer", method: http.MethodPut, referer: "http://localhost:3000/admin/posts", want: http.StatusNoContent},
+		{name: "allowed wildcard origin from cloud shell preview", method: http.MethodPost, origin: "https://3000-cs-482b7998-f3ee-4774-b73a-b12df385705f.cs-europe-west4-bhnf.cloudshell.dev", allowed: []string{"https://*.cloudshell.dev"}, want: http.StatusNoContent},
 		{name: "forwarded same host through http upstream", method: http.MethodPost, origin: "https://3000-test.cloudshell.dev", host: "3000-test.cloudshell.dev", proto: "http", want: http.StatusNoContent},
 		{name: "disallowed origin", method: http.MethodDelete, origin: "https://evil.example", want: http.StatusForbidden, code: "csrf_invalid"},
+		{name: "wildcard origin does not allow another suffix", method: http.MethodPost, origin: "https://3000-test.cloudshell.dev.evil.example", allowed: []string{"https://*.cloudshell.dev"}, want: http.StatusForbidden, code: "csrf_invalid"},
 		{name: "forwarded different origin still blocked", method: http.MethodPost, origin: "https://evil.example", host: "3000-test.cloudshell.dev", proto: "https", want: http.StatusForbidden, code: "csrf_invalid"},
 		{name: "null origin", method: http.MethodPost, origin: "null", want: http.StatusForbidden, code: "csrf_required"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			server := Server{cfg: testConfig()}
+			if tt.allowed != nil {
+				server.cfg.AllowedOrigins = tt.allowed
+			}
+			handler := server.requireAdminCSRF(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(http.StatusNoContent)
+			}))
+
 			res := httptest.NewRecorder()
 			req := httptest.NewRequest(tt.method, "/api/admin/posts", nil)
 			if tt.origin != "" {

@@ -210,7 +210,6 @@ test.describe("admin surface", () => {
   test("moderates pending comments", async ({ page }) => {
     await signInByCookie(page);
 
-    let moderatedStatus = "";
     await page.route("**/api/admin/comments?status=pending", async (route) => {
       await route.fulfill({
         status: 200,
@@ -230,7 +229,7 @@ test.describe("admin surface", () => {
       });
     });
     await page.route("**/api/admin/comments/comment-123/moderate", async (route) => {
-      moderatedStatus = (route.request().postDataJSON() as { status: string }).status;
+      const moderatedStatus = (route.request().postDataJSON() as { status: string }).status;
       await route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -250,6 +249,5 @@ test.describe("admin surface", () => {
     ]);
 
     expect((request.postDataJSON() as { status: string }).status).toBe("approved");
-    expect(moderatedStatus).toBe("approved");
   });
 });

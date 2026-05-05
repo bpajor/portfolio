@@ -667,11 +667,29 @@ func (s Server) originAllowed(r *http.Request, origin string) bool {
 		return true
 	}
 	for _, allowed := range s.cfg.AllowedOrigins {
-		if allowed == "*" || strings.EqualFold(strings.TrimRight(allowed, "/"), origin) {
+		if originMatchesAllowedPattern(allowed, origin) {
 			return true
 		}
 	}
 	return false
+}
+
+func originMatchesAllowedPattern(allowed string, origin string) bool {
+	allowed = strings.ToLower(strings.TrimRight(strings.TrimSpace(allowed), "/"))
+	origin = strings.ToLower(strings.TrimRight(strings.TrimSpace(origin), "/"))
+	if allowed == "" || origin == "" {
+		return false
+	}
+	if allowed == "*" || allowed == origin {
+		return true
+	}
+	if !strings.Contains(allowed, "*") {
+		return false
+	}
+
+	pattern := "^" + strings.ReplaceAll(regexp.QuoteMeta(allowed), "\\*", ".*") + "$"
+	ok, err := regexp.MatchString(pattern, origin)
+	return err == nil && ok
 }
 
 func externalRequestOrigin(r *http.Request) string {

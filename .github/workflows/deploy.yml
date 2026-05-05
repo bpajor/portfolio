@@ -221,6 +221,35 @@ jobs:
           status="$(curl -sS -o /dev/null -w '%{http_code}' "$STAGING_BASE_URL/mcp")"
           test "$status" = "401"
 
+      - name: Create staging admin E2E session
+        env:
+          APP_DIR: ${{ secrets.APP_DIR }}
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+          GCP_VM_NAME: ${{ vars.GCP_VM_NAME }}
+          GCP_VM_ZONE: ${{ vars.GCP_VM_ZONE }}
+        run: |
+          set -euo pipefail
+          token="$(openssl rand -hex 32)"
+          token_hash="$(printf '%s' "$token" | sha256sum | awk '{print $1}')"
+          echo "::add-mask::$token"
+          echo "E2E_ADMIN_SESSION_TOKEN=$token" >> "$GITHUB_ENV"
+
+          sql="WITH inserted AS (INSERT INTO sessions (user_id, token_hash, expires_at) SELECT id, '$token_hash', now() + interval '2 hours' FROM users WHERE role = 'admin' ORDER BY created_at LIMIT 1 RETURNING 1) SELECT count(*) FROM inserted;"
+          remote_command=$(cat <<EOF
+          set -euo pipefail
+          cd "$APP_DIR/deploy/compose"
+          inserted=\$(sudo -u portfolio docker compose --env-file .env -f compose.yml exec -T postgres psql -U portfolio -d portfolio -tAc "$sql")
+          test "\$(echo "\$inserted" | tr -d '[:space:]')" = "1"
+          EOF
+          )
+
+          gcloud compute ssh "$GCP_VM_NAME" \
+            --project "$GCP_PROJECT_ID" \
+            --zone "$GCP_VM_ZONE" \
+            --tunnel-through-iap \
+            --quiet \
+            --command "$remote_command"
+
       - name: Setup Node
         uses: actions/setup-node@v6
         with:
