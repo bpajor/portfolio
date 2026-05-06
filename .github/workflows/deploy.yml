@@ -78,18 +78,25 @@ jobs:
           set -euo pipefail
           docker build \
             -f apps/web/Dockerfile \
+            --label org.opencontainers.image.revision="$GITHUB_SHA" \
             --build-arg NEXT_PUBLIC_SITE_URL="$NEXT_PUBLIC_SITE_URL" \
             --build-arg NEXT_PUBLIC_API_BASE_URL="$NEXT_PUBLIC_API_BASE_URL" \
             -t "${COMPOSE_PROJECT_NAME}-web:latest" \
             .
           docker build \
             -f apps/api/Dockerfile \
+            --label org.opencontainers.image.revision="$GITHUB_SHA" \
             -t "${COMPOSE_PROJECT_NAME}-api:latest" \
             .
           docker build \
             -f apps/mcp/Dockerfile \
+            --label org.opencontainers.image.revision="$GITHUB_SHA" \
             -t "${COMPOSE_PROJECT_NAME}-mcp:latest" \
             .
+          for service in web api mcp; do
+            docker image inspect "${COMPOSE_PROJECT_NAME}-${service}:latest" \
+              --format "${COMPOSE_PROJECT_NAME}-${service}:latest {{.ID}} revision={{ index .Config.Labels \"org.opencontainers.image.revision\" }}"
+          done
           docker save \
             "${COMPOSE_PROJECT_NAME}-web:latest" \
             "${COMPOSE_PROJECT_NAME}-api:latest" \
@@ -125,6 +132,7 @@ jobs:
           : "${RELEASE_IMAGE_ARCHIVE:?RELEASE_IMAGE_ARCHIVE is required}"
           : "${DEPLOY_MODE:?DEPLOY_MODE is required}"
           : "${RUN_BACKUP:?RUN_BACKUP is required}"
+          : "${EXPECTED_IMAGE_REVISION:?EXPECTED_IMAGE_REVISION is required}"
 
           cleanup() {
             rm -f "$RELEASE_IMAGE_ARCHIVE" "$0"
@@ -138,6 +146,7 @@ jobs:
             RELEASE_IMAGE_ARCHIVE="$RELEASE_IMAGE_ARCHIVE" \
             DEPLOY_MODE="$DEPLOY_MODE" \
             RUN_BACKUP="$RUN_BACKUP" \
+            EXPECTED_IMAGE_REVISION="$EXPECTED_IMAGE_REVISION" \
             bash <<'PORTFOLIO_DEPLOY'
           set -euo pipefail
           cd "$APP_DIR"
@@ -169,8 +178,41 @@ jobs:
           if [ "$RUN_BACKUP" = "true" ]; then
             ./backup-postgres.sh || true
           fi
+
+          compose_project="$(awk -F= '$1 == "COMPOSE_PROJECT_NAME" {print $2}' .env | tail -n 1)"
+          if [ -z "$compose_project" ]; then
+            echo "ERROR: COMPOSE_PROJECT_NAME is required in .env" >&2
+            exit 1
+          fi
+
+          image_revision() {
+            docker image inspect "$1" --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}'
+          }
+
+          container_revision() {
+            docker inspect "$1" --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}'
+          }
+
           docker load -i "$RELEASE_IMAGE_ARCHIVE"
-          docker compose --env-file .env -f compose.yml up -d --no-build
+          for service in web api mcp; do
+            image="${compose_project}-${service}:latest"
+            actual_revision="$(image_revision "$image")"
+            echo "$image revision=$actual_revision"
+            if [ "$actual_revision" != "$EXPECTED_IMAGE_REVISION" ]; then
+              echo "ERROR: $image revision $actual_revision does not match expected $EXPECTED_IMAGE_REVISION" >&2
+              exit 1
+            fi
+          done
+          docker compose --env-file .env -f compose.yml up -d --no-build --force-recreate web api mcp
+          for service in web api mcp; do
+            container="${compose_project}-${service}-1"
+            actual_revision="$(container_revision "$container")"
+            echo "$container revision=$actual_revision"
+            if [ "$actual_revision" != "$EXPECTED_IMAGE_REVISION" ]; then
+              echo "ERROR: $container revision $actual_revision does not match expected $EXPECTED_IMAGE_REVISION" >&2
+              exit 1
+            fi
+          done
           docker compose --env-file .env -f compose.yml ps
           PORTFOLIO_DEPLOY
           SCRIPT
@@ -206,7 +248,7 @@ jobs:
             --zone "$GCP_VM_ZONE" \
             --tunnel-through-iap \
             --quiet \
-            --command "chmod +x '$REMOTE_DEPLOY_SCRIPT' && APP_DIR='$APP_DIR' RELEASE_IMAGE_ARCHIVE='$REMOTE_RELEASE_IMAGE_ARCHIVE' DEPLOY_MODE='staging' RUN_BACKUP='false' '$REMOTE_DEPLOY_SCRIPT'"
+            --command "chmod +x '$REMOTE_DEPLOY_SCRIPT' && APP_DIR='$APP_DIR' RELEASE_IMAGE_ARCHIVE='$REMOTE_RELEASE_IMAGE_ARCHIVE' DEPLOY_MODE='staging' RUN_BACKUP='false' EXPECTED_IMAGE_REVISION='$GITHUB_SHA' '$REMOTE_DEPLOY_SCRIPT'"
 
       - name: Open staging IAP tunnel
         env:
@@ -350,18 +392,25 @@ jobs:
           set -euo pipefail
           docker build \
             -f apps/web/Dockerfile \
+            --label org.opencontainers.image.revision="$GITHUB_SHA" \
             --build-arg NEXT_PUBLIC_SITE_URL="$NEXT_PUBLIC_SITE_URL" \
             --build-arg NEXT_PUBLIC_API_BASE_URL="$NEXT_PUBLIC_API_BASE_URL" \
             -t "${COMPOSE_PROJECT_NAME}-web:latest" \
             .
           docker build \
             -f apps/api/Dockerfile \
+            --label org.opencontainers.image.revision="$GITHUB_SHA" \
             -t "${COMPOSE_PROJECT_NAME}-api:latest" \
             .
           docker build \
             -f apps/mcp/Dockerfile \
+            --label org.opencontainers.image.revision="$GITHUB_SHA" \
             -t "${COMPOSE_PROJECT_NAME}-mcp:latest" \
             .
+          for service in web api mcp; do
+            docker image inspect "${COMPOSE_PROJECT_NAME}-${service}:latest" \
+              --format "${COMPOSE_PROJECT_NAME}-${service}:latest {{.ID}} revision={{ index .Config.Labels \"org.opencontainers.image.revision\" }}"
+          done
           docker save \
             "${COMPOSE_PROJECT_NAME}-web:latest" \
             "${COMPOSE_PROJECT_NAME}-api:latest" \
@@ -397,6 +446,7 @@ jobs:
           : "${RELEASE_IMAGE_ARCHIVE:?RELEASE_IMAGE_ARCHIVE is required}"
           : "${DEPLOY_MODE:?DEPLOY_MODE is required}"
           : "${RUN_BACKUP:?RUN_BACKUP is required}"
+          : "${EXPECTED_IMAGE_REVISION:?EXPECTED_IMAGE_REVISION is required}"
 
           cleanup() {
             rm -f "$RELEASE_IMAGE_ARCHIVE" "$0"
@@ -410,6 +460,7 @@ jobs:
             RELEASE_IMAGE_ARCHIVE="$RELEASE_IMAGE_ARCHIVE" \
             DEPLOY_MODE="$DEPLOY_MODE" \
             RUN_BACKUP="$RUN_BACKUP" \
+            EXPECTED_IMAGE_REVISION="$EXPECTED_IMAGE_REVISION" \
             bash <<'PORTFOLIO_DEPLOY'
           set -euo pipefail
           cd "$APP_DIR"
@@ -421,8 +472,41 @@ jobs:
           if [ "$RUN_BACKUP" = "true" ]; then
             ./backup-postgres.sh || true
           fi
+
+          compose_project="$(awk -F= '$1 == "COMPOSE_PROJECT_NAME" {print $2}' .env | tail -n 1)"
+          if [ -z "$compose_project" ]; then
+            echo "ERROR: COMPOSE_PROJECT_NAME is required in .env" >&2
+            exit 1
+          fi
+
+          image_revision() {
+            docker image inspect "$1" --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}'
+          }
+
+          container_revision() {
+            docker inspect "$1" --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}'
+          }
+
           docker load -i "$RELEASE_IMAGE_ARCHIVE"
-          docker compose --env-file .env -f compose.yml up -d --no-build
+          for service in web api mcp; do
+            image="${compose_project}-${service}:latest"
+            actual_revision="$(image_revision "$image")"
+            echo "$image revision=$actual_revision"
+            if [ "$actual_revision" != "$EXPECTED_IMAGE_REVISION" ]; then
+              echo "ERROR: $image revision $actual_revision does not match expected $EXPECTED_IMAGE_REVISION" >&2
+              exit 1
+            fi
+          done
+          docker compose --env-file .env -f compose.yml up -d --no-build --force-recreate web api mcp
+          for service in web api mcp; do
+            container="${compose_project}-${service}-1"
+            actual_revision="$(container_revision "$container")"
+            echo "$container revision=$actual_revision"
+            if [ "$actual_revision" != "$EXPECTED_IMAGE_REVISION" ]; then
+              echo "ERROR: $container revision $actual_revision does not match expected $EXPECTED_IMAGE_REVISION" >&2
+              exit 1
+            fi
+          done
           docker compose --env-file .env -f compose.yml ps
           PORTFOLIO_DEPLOY
           SCRIPT
@@ -458,7 +542,7 @@ jobs:
             --zone "$GCP_VM_ZONE" \
             --tunnel-through-iap \
             --quiet \
-            --command "chmod +x '$REMOTE_DEPLOY_SCRIPT' && APP_DIR='$APP_DIR' RELEASE_IMAGE_ARCHIVE='$REMOTE_RELEASE_IMAGE_ARCHIVE' DEPLOY_MODE='production' RUN_BACKUP='true' '$REMOTE_DEPLOY_SCRIPT'"
+            --command "chmod +x '$REMOTE_DEPLOY_SCRIPT' && APP_DIR='$APP_DIR' RELEASE_IMAGE_ARCHIVE='$REMOTE_RELEASE_IMAGE_ARCHIVE' DEPLOY_MODE='production' RUN_BACKUP='true' EXPECTED_IMAGE_REVISION='$GITHUB_SHA' '$REMOTE_DEPLOY_SCRIPT'"
 
       - name: Open production IAP tunnel
         env:
