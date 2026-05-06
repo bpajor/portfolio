@@ -22,10 +22,18 @@ describe("apiUrl", () => {
     expect(apiUrl("posts/hello/comments")).toBe("/api/posts/hello/comments");
   });
 
+  it("does not duplicate the /api prefix when a caller passes an API-prefixed path", async () => {
+    const { apiUrl } = await loadApiUrl("/api");
+
+    expect(apiUrl("/api/admin/auth/login")).toBe("/api/admin/auth/login");
+    expect(apiUrl("api/posts")).toBe("/api/posts");
+  });
+
   it("trims trailing slashes from the configured base URL", async () => {
     const { apiUrl } = await loadApiUrl("https://example.com/api/");
 
     expect(apiUrl("/admin/comments")).toBe("https://example.com/api/admin/comments");
+    expect(apiUrl("/api/admin/comments")).toBe("https://example.com/api/admin/comments");
   });
 
   it("defaults to the local API service prefix", async () => {
