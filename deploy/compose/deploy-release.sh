@@ -6,6 +6,7 @@ set -euo pipefail
 : "${DEPLOY_MODE:?DEPLOY_MODE is required}"
 : "${RUN_BACKUP:?RUN_BACKUP is required}"
 : "${EXPECTED_IMAGE_REVISION:?EXPECTED_IMAGE_REVISION is required}"
+: "${RELEASE_SERVICES:=web api mcp}"
 
 cleanup() {
   if [ "${PORTFOLIO_DEPLOY_AS_USER:-}" != "1" ]; then
@@ -29,8 +30,30 @@ if [ "${PORTFOLIO_DEPLOY_AS_USER:-}" != "1" ]; then
     DEPLOY_MODE="$DEPLOY_MODE" \
     RUN_BACKUP="$RUN_BACKUP" \
     EXPECTED_IMAGE_REVISION="$EXPECTED_IMAGE_REVISION" \
+    RELEASE_SERVICES="$RELEASE_SERVICES" \
     PORTFOLIO_DEPLOY_AS_USER=1 \
     bash "$0"
+fi
+
+release_services=""
+for service in $RELEASE_SERVICES; do
+  case "$service" in
+    web|api|mcp)
+      case " $release_services " in
+        *" $service "*) ;;
+        *) release_services="${release_services:+$release_services }$service" ;;
+      esac
+      ;;
+    *)
+      echo "ERROR: unsupported release service '$service'; expected web, api, or mcp" >&2
+      exit 1
+      ;;
+  esac
+done
+
+if [ -z "$release_services" ]; then
+  echo "ERROR: RELEASE_SERVICES must include at least one service" >&2
+  exit 1
 fi
 
 image_revision() {
@@ -104,7 +127,7 @@ if command -v sha256sum >/dev/null 2>&1; then
 fi
 
 log "Images before docker load"
-for service in web api mcp; do
+for service in $release_services; do
   image="${compose_project}-${service}:latest"
   if docker image inspect "$image" >/dev/null 2>&1; then
     docker image inspect "$image" --format "$image {{.ID}} revision={{ index .Config.Labels \"org.opencontainers.image.revision\" }}"
@@ -117,17 +140,17 @@ log "Loading release images"
 docker load -i "$RELEASE_IMAGE_ARCHIVE"
 
 log "Images after docker load"
-for service in web api mcp; do
+for service in $release_services; do
   image="${compose_project}-${service}:latest"
   docker image inspect "$image" --format "$image {{.ID}} revision={{ index .Config.Labels \"org.opencontainers.image.revision\" }}"
   require_revision image "$image" "$(image_revision "$image")"
 done
 
 log "Recreating application services"
-docker compose --env-file .env -f compose.yml up -d --no-build --force-recreate web api mcp
+docker compose --env-file .env -f compose.yml up -d --no-build --force-recreate $release_services
 
 log "Verifying running container revisions"
-for service in web api mcp; do
+for service in $release_services; do
   container="${compose_project}-${service}-1"
   docker inspect "$container" --format "$container {{.Image}} revision={{ index .Config.Labels \"org.opencontainers.image.revision\" }}"
   require_revision container "$container" "$(container_revision "$container")"
