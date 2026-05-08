@@ -119,103 +119,12 @@ jobs:
           GCP_VM_NAME: ${{ vars.GCP_VM_NAME }}
           GCP_VM_ZONE: ${{ vars.GCP_VM_ZONE }}
           LOCAL_RELEASE_IMAGE_ARCHIVE: /tmp/portfolio-staging-images.tar.gz
-          LOCAL_DEPLOY_SCRIPT: /tmp/portfolio-deploy-staging.sh
+          LOCAL_DEPLOY_SCRIPT: deploy/compose/deploy-release.sh
           REMOTE_RELEASE_IMAGE_ARCHIVE: /tmp/portfolio-staging-${{ github.sha }}.tar.gz
           REMOTE_DEPLOY_SCRIPT: /tmp/portfolio-deploy-staging-${{ github.sha }}.sh
         run: |
           set -euo pipefail
-          cat > "$LOCAL_DEPLOY_SCRIPT" <<'SCRIPT'
-          #!/usr/bin/env bash
-          set -euo pipefail
-
-          : "${APP_DIR:?APP_DIR is required}"
-          : "${RELEASE_IMAGE_ARCHIVE:?RELEASE_IMAGE_ARCHIVE is required}"
-          : "${DEPLOY_MODE:?DEPLOY_MODE is required}"
-          : "${RUN_BACKUP:?RUN_BACKUP is required}"
-          : "${EXPECTED_IMAGE_REVISION:?EXPECTED_IMAGE_REVISION is required}"
-
-          cleanup() {
-            rm -f "$RELEASE_IMAGE_ARCHIVE" "$0"
-          }
-          trap cleanup EXIT
-
-          chmod 0644 "$RELEASE_IMAGE_ARCHIVE"
-
-          sudo -u portfolio env \
-            APP_DIR="$APP_DIR" \
-            RELEASE_IMAGE_ARCHIVE="$RELEASE_IMAGE_ARCHIVE" \
-            DEPLOY_MODE="$DEPLOY_MODE" \
-            RUN_BACKUP="$RUN_BACKUP" \
-            EXPECTED_IMAGE_REVISION="$EXPECTED_IMAGE_REVISION" \
-            bash <<'PORTFOLIO_DEPLOY'
-          set -euo pipefail
-          cd "$APP_DIR"
-          git fetch origin main
-          git checkout main
-          git pull --ff-only origin main
-          cd deploy/compose
-          if [ "$DEPLOY_MODE" = "staging" ]; then
-            for key in API_ALLOWED_ORIGINS MCP_ALLOWED_ORIGINS; do
-              current="$(grep -E "^${key}=" .env | tail -n 1 | cut -d= -f2-)"
-              case ",$current," in
-                *",https://*.cloudshell.dev,"*) ;;
-                *)
-                  if [ -n "$current" ]; then
-                    next="${current},https://*.cloudshell.dev"
-                  else
-                    next="https://*.cloudshell.dev"
-                  fi
-                  if grep -qE "^${key}=" .env; then
-                    sed -i "s|^${key}=.*|${key}=${next}|" .env
-                  else
-                    printf '%s=%s\n' "$key" "$next" >> .env
-                  fi
-                  ;;
-              esac
-            done
-          fi
-          ./validate-env.sh "$DEPLOY_MODE" .env
-          if [ "$RUN_BACKUP" = "true" ]; then
-            ./backup-postgres.sh || true
-          fi
-
-          compose_project="$(awk -F= '$1 == "COMPOSE_PROJECT_NAME" {print $2}' .env | tail -n 1)"
-          if [ -z "$compose_project" ]; then
-            echo "ERROR: COMPOSE_PROJECT_NAME is required in .env" >&2
-            exit 1
-          fi
-
-          image_revision() {
-            docker image inspect "$1" --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}'
-          }
-
-          container_revision() {
-            docker inspect "$1" --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}'
-          }
-
-          docker load -i "$RELEASE_IMAGE_ARCHIVE"
-          for service in web api mcp; do
-            image="${compose_project}-${service}:latest"
-            actual_revision="$(image_revision "$image")"
-            echo "$image revision=$actual_revision"
-            if [ "$actual_revision" != "$EXPECTED_IMAGE_REVISION" ]; then
-              echo "ERROR: $image revision $actual_revision does not match expected $EXPECTED_IMAGE_REVISION" >&2
-              exit 1
-            fi
-          done
-          docker compose --env-file .env -f compose.yml up -d --no-build --force-recreate web api mcp
-          for service in web api mcp; do
-            container="${compose_project}-${service}-1"
-            actual_revision="$(container_revision "$container")"
-            echo "$container revision=$actual_revision"
-            if [ "$actual_revision" != "$EXPECTED_IMAGE_REVISION" ]; then
-              echo "ERROR: $container revision $actual_revision does not match expected $EXPECTED_IMAGE_REVISION" >&2
-              exit 1
-            fi
-          done
-          docker compose --env-file .env -f compose.yml ps
-          PORTFOLIO_DEPLOY
-          SCRIPT
+          test -s "$LOCAL_DEPLOY_SCRIPT"
 
           gcloud compute scp \
             --project "$GCP_PROJECT_ID" \
@@ -248,7 +157,7 @@ jobs:
             --zone "$GCP_VM_ZONE" \
             --tunnel-through-iap \
             --quiet \
-            --command "chmod +x '$REMOTE_DEPLOY_SCRIPT' && APP_DIR='$APP_DIR' RELEASE_IMAGE_ARCHIVE='$REMOTE_RELEASE_IMAGE_ARCHIVE' DEPLOY_MODE='staging' RUN_BACKUP='false' EXPECTED_IMAGE_REVISION='$GITHUB_SHA' '$REMOTE_DEPLOY_SCRIPT'"
+            --command "APP_DIR='$APP_DIR' RELEASE_IMAGE_ARCHIVE='$REMOTE_RELEASE_IMAGE_ARCHIVE' DEPLOY_MODE='staging' RUN_BACKUP='false' EXPECTED_IMAGE_REVISION='$GITHUB_SHA' bash '$REMOTE_DEPLOY_SCRIPT'"
 
       - name: Open staging IAP tunnel
         env:
@@ -433,83 +342,12 @@ jobs:
           GCP_VM_NAME: ${{ vars.GCP_VM_NAME }}
           GCP_VM_ZONE: ${{ vars.GCP_VM_ZONE }}
           LOCAL_RELEASE_IMAGE_ARCHIVE: /tmp/portfolio-production-images.tar.gz
-          LOCAL_DEPLOY_SCRIPT: /tmp/portfolio-deploy-production.sh
+          LOCAL_DEPLOY_SCRIPT: deploy/compose/deploy-release.sh
           REMOTE_RELEASE_IMAGE_ARCHIVE: /tmp/portfolio-production-${{ github.sha }}.tar.gz
           REMOTE_DEPLOY_SCRIPT: /tmp/portfolio-deploy-production-${{ github.sha }}.sh
         run: |
           set -euo pipefail
-          cat > "$LOCAL_DEPLOY_SCRIPT" <<'SCRIPT'
-          #!/usr/bin/env bash
-          set -euo pipefail
-
-          : "${APP_DIR:?APP_DIR is required}"
-          : "${RELEASE_IMAGE_ARCHIVE:?RELEASE_IMAGE_ARCHIVE is required}"
-          : "${DEPLOY_MODE:?DEPLOY_MODE is required}"
-          : "${RUN_BACKUP:?RUN_BACKUP is required}"
-          : "${EXPECTED_IMAGE_REVISION:?EXPECTED_IMAGE_REVISION is required}"
-
-          cleanup() {
-            rm -f "$RELEASE_IMAGE_ARCHIVE" "$0"
-          }
-          trap cleanup EXIT
-
-          chmod 0644 "$RELEASE_IMAGE_ARCHIVE"
-
-          sudo -u portfolio env \
-            APP_DIR="$APP_DIR" \
-            RELEASE_IMAGE_ARCHIVE="$RELEASE_IMAGE_ARCHIVE" \
-            DEPLOY_MODE="$DEPLOY_MODE" \
-            RUN_BACKUP="$RUN_BACKUP" \
-            EXPECTED_IMAGE_REVISION="$EXPECTED_IMAGE_REVISION" \
-            bash <<'PORTFOLIO_DEPLOY'
-          set -euo pipefail
-          cd "$APP_DIR"
-          git fetch origin main
-          git checkout main
-          git pull --ff-only origin main
-          cd deploy/compose
-          ./validate-env.sh "$DEPLOY_MODE" .env
-          if [ "$RUN_BACKUP" = "true" ]; then
-            ./backup-postgres.sh || true
-          fi
-
-          compose_project="$(awk -F= '$1 == "COMPOSE_PROJECT_NAME" {print $2}' .env | tail -n 1)"
-          if [ -z "$compose_project" ]; then
-            echo "ERROR: COMPOSE_PROJECT_NAME is required in .env" >&2
-            exit 1
-          fi
-
-          image_revision() {
-            docker image inspect "$1" --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}'
-          }
-
-          container_revision() {
-            docker inspect "$1" --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}'
-          }
-
-          docker load -i "$RELEASE_IMAGE_ARCHIVE"
-          for service in web api mcp; do
-            image="${compose_project}-${service}:latest"
-            actual_revision="$(image_revision "$image")"
-            echo "$image revision=$actual_revision"
-            if [ "$actual_revision" != "$EXPECTED_IMAGE_REVISION" ]; then
-              echo "ERROR: $image revision $actual_revision does not match expected $EXPECTED_IMAGE_REVISION" >&2
-              exit 1
-            fi
-          done
-          docker compose --env-file .env -f compose.yml up -d --no-build --force-recreate web api mcp
-          for service in web api mcp; do
-            container="${compose_project}-${service}-1"
-            actual_revision="$(container_revision "$container")"
-            echo "$container revision=$actual_revision"
-            if [ "$actual_revision" != "$EXPECTED_IMAGE_REVISION" ]; then
-              echo "ERROR: $container revision $actual_revision does not match expected $EXPECTED_IMAGE_REVISION" >&2
-              exit 1
-            fi
-          done
-          docker compose --env-file .env -f compose.yml ps
-          PORTFOLIO_DEPLOY
-          SCRIPT
+          test -s "$LOCAL_DEPLOY_SCRIPT"
 
           gcloud compute scp \
             --project "$GCP_PROJECT_ID" \
@@ -542,7 +380,7 @@ jobs:
             --zone "$GCP_VM_ZONE" \
             --tunnel-through-iap \
             --quiet \
-            --command "chmod +x '$REMOTE_DEPLOY_SCRIPT' && APP_DIR='$APP_DIR' RELEASE_IMAGE_ARCHIVE='$REMOTE_RELEASE_IMAGE_ARCHIVE' DEPLOY_MODE='production' RUN_BACKUP='true' EXPECTED_IMAGE_REVISION='$GITHUB_SHA' '$REMOTE_DEPLOY_SCRIPT'"
+            --command "APP_DIR='$APP_DIR' RELEASE_IMAGE_ARCHIVE='$REMOTE_RELEASE_IMAGE_ARCHIVE' DEPLOY_MODE='production' RUN_BACKUP='true' EXPECTED_IMAGE_REVISION='$GITHUB_SHA' bash '$REMOTE_DEPLOY_SCRIPT'"
 
       - name: Open production IAP tunnel
         env:
