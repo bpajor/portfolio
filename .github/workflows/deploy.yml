@@ -15,15 +15,150 @@ permissions:
   id-token: write
 
 jobs:
+  changes:
+    name: Detect deployment scope
+    runs-on: ubuntu-latest
+    outputs:
+      app_changed: ${{ steps.detect.outputs.app_changed }}
+      web_changed: ${{ steps.detect.outputs.web_changed }}
+      api_changed: ${{ steps.detect.outputs.api_changed }}
+      mcp_changed: ${{ steps.detect.outputs.mcp_changed }}
+      database_changed: ${{ steps.detect.outputs.database_changed }}
+      terraform_changed: ${{ steps.detect.outputs.terraform_changed }}
+      deploy_changed: ${{ steps.detect.outputs.deploy_changed }}
+      release_services: ${{ steps.detect.outputs.release_services }}
+      verify_required: ${{ steps.detect.outputs.verify_required }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Detect changed areas
+        id: detect
+        run: |
+          set -euo pipefail
+
+          web=false
+          api=false
+          mcp=false
+          database=false
+          terraform=false
+          deploy=false
+          verify=false
+
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            web=true
+            api=true
+            mcp=true
+            database=true
+            terraform=true
+            deploy=true
+            verify=true
+            printf '__manual_dispatch__\n' > changed-files.txt
+          else
+            base="${{ github.event.before }}"
+            if [ -z "$base" ] || printf '%s' "$base" | grep -Eq '^0+$'; then
+              base="$(git rev-parse HEAD^)"
+            fi
+            git diff --name-only "$base" "$GITHUB_SHA" > changed-files.txt
+
+            while IFS= read -r path; do
+              [ -n "$path" ] || continue
+              case "$path" in
+                apps/web/*|packages/*|package.json|package-lock.json|apps/web/Dockerfile)
+                  web=true
+                  verify=true
+                  ;;
+                apps/api/*|apps/api/Dockerfile)
+                  api=true
+                  verify=true
+                  ;;
+                apps/mcp/*|apps/mcp/Dockerfile)
+                  mcp=true
+                  verify=true
+                  ;;
+                db/*|scripts/test-migrations.*|compose.dev.yml)
+                  api=true
+                  mcp=true
+                  database=true
+                  verify=true
+                  ;;
+                deploy/compose/*|.dockerignore)
+                  web=true
+                  api=true
+                  mcp=true
+                  deploy=true
+                  verify=true
+                  ;;
+                infra/gcp/*|.github/workflows/terraform-plan.yml)
+                  terraform=true
+                  verify=true
+                  ;;
+                .github/workflows/deploy.yml|.github/workflows/pr-ci.yml)
+                  deploy=true
+                  verify=true
+                  ;;
+              esac
+            done < changed-files.txt
+          fi
+
+          services=""
+          if [ "$web" = "true" ]; then services="${services:+$services }web"; fi
+          if [ "$api" = "true" ]; then services="${services:+$services }api"; fi
+          if [ "$mcp" = "true" ]; then services="${services:+$services }mcp"; fi
+
+          app_changed=false
+          if [ -n "$services" ]; then app_changed=true; fi
+
+          {
+            echo "app_changed=$app_changed"
+            echo "web_changed=$web"
+            echo "api_changed=$api"
+            echo "mcp_changed=$mcp"
+            echo "database_changed=$database"
+            echo "terraform_changed=$terraform"
+            echo "deploy_changed=$deploy"
+            echo "release_services=$services"
+            echo "verify_required=$verify"
+          } >> "$GITHUB_OUTPUT"
+
+          {
+            echo "## Deployment Scope"
+            echo
+            echo "- App changed: \`$app_changed\`"
+            echo "- Release services: \`${services:-none}\`"
+            echo "- Database checks: \`$database\`"
+            echo "- Terraform changed: \`$terraform\`"
+            echo "- Deploy scripts/workflows changed: \`$deploy\`"
+            echo "- Verify required: \`$verify\`"
+            echo
+            echo "Changed files:"
+            echo '```text'
+            cat changed-files.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
   verify:
     name: Verify before deployment
+    needs: changes
+    if: ${{ needs.changes.outputs.verify_required == 'true' }}
     uses: ./.github/workflows/pr-ci.yml
+    with:
+      web_changed: ${{ needs.changes.outputs.web_changed == 'true' }}
+      api_changed: ${{ needs.changes.outputs.api_changed == 'true' }}
+      mcp_changed: ${{ needs.changes.outputs.mcp_changed == 'true' }}
+      database_changed: ${{ needs.changes.outputs.database_changed == 'true' }}
+      terraform_changed: ${{ needs.changes.outputs.terraform_changed == 'true' }}
+      deploy_changed: ${{ needs.changes.outputs.deploy_changed == 'true' }}
 
   deployment-disabled:
     name: Deployment disabled
     runs-on: ubuntu-latest
-    needs: verify
-    if: ${{ github.event_name != 'workflow_dispatch' && vars.DEPLOY_ENABLED != 'true' }}
+    needs:
+      - changes
+      - verify
+    if: ${{ always() && github.event_name != 'workflow_dispatch' && vars.DEPLOY_ENABLED != 'true' && needs.changes.outputs.app_changed == 'true' }}
     steps:
       - name: Explain disabled deployment
         run: |
@@ -31,11 +166,22 @@ jobs:
           echo "Set the repository variable DEPLOY_ENABLED=true after staging and production environments are configured."
           echo "Manual workflow_dispatch runs can still deploy when you intentionally start them."
 
+  deployment-skipped:
+    name: Deployment skipped
+    runs-on: ubuntu-latest
+    needs: changes
+    if: ${{ needs.changes.outputs.app_changed != 'true' && needs.changes.outputs.terraform_changed != 'true' }}
+    steps:
+      - name: Explain skipped deployment
+        run: echo "No application or Terraform deployment-relevant files changed."
+
   deploy-staging:
     name: Deploy staging
     runs-on: ubuntu-latest
-    needs: verify
-    if: ${{ github.event_name == 'workflow_dispatch' || vars.DEPLOY_ENABLED == 'true' }}
+    needs:
+      - changes
+      - verify
+    if: ${{ always() && (github.event_name == 'workflow_dispatch' || vars.DEPLOY_ENABLED == 'true') && needs.changes.outputs.app_changed == 'true' && needs.verify.result == 'success' }}
     environment:
       name: staging
       url: ${{ vars.BASE_URL }}
@@ -48,6 +194,7 @@ jobs:
           GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
           GCP_VM_NAME: ${{ vars.GCP_VM_NAME }}
           GCP_VM_ZONE: ${{ vars.GCP_VM_ZONE }}
+          RELEASE_SERVICES: ${{ needs.changes.outputs.release_services }}
         run: |
           set -euo pipefail
           for name in \
@@ -56,7 +203,8 @@ jobs:
             GCP_DEPLOY_SERVICE_ACCOUNT \
             GCP_PROJECT_ID \
             GCP_VM_NAME \
-            GCP_VM_ZONE
+            GCP_VM_ZONE \
+            RELEASE_SERVICES
           do
             value="${!name:-}"
             if [ -z "$value" ]; then
@@ -74,34 +222,49 @@ jobs:
           NEXT_PUBLIC_API_BASE_URL: /api
           COMPOSE_PROJECT_NAME: portfolio-staging
           RELEASE_IMAGE_ARCHIVE: /tmp/portfolio-staging-images.tar.gz
+          RELEASE_SERVICES: ${{ needs.changes.outputs.release_services }}
         run: |
           set -euo pipefail
-          docker build \
-            -f apps/web/Dockerfile \
-            --label org.opencontainers.image.revision="$GITHUB_SHA" \
-            --build-arg NEXT_PUBLIC_SITE_URL="$NEXT_PUBLIC_SITE_URL" \
-            --build-arg NEXT_PUBLIC_API_BASE_URL="$NEXT_PUBLIC_API_BASE_URL" \
-            -t "${COMPOSE_PROJECT_NAME}-web:latest" \
-            .
-          docker build \
-            -f apps/api/Dockerfile \
-            --label org.opencontainers.image.revision="$GITHUB_SHA" \
-            -t "${COMPOSE_PROJECT_NAME}-api:latest" \
-            .
-          docker build \
-            -f apps/mcp/Dockerfile \
-            --label org.opencontainers.image.revision="$GITHUB_SHA" \
-            -t "${COMPOSE_PROJECT_NAME}-mcp:latest" \
-            .
-          for service in web api mcp; do
-            docker image inspect "${COMPOSE_PROJECT_NAME}-${service}:latest" \
-              --format "${COMPOSE_PROJECT_NAME}-${service}:latest {{.ID}} revision={{ index .Config.Labels \"org.opencontainers.image.revision\" }}"
+          archive_images=()
+
+          for service in $RELEASE_SERVICES; do
+            case "$service" in
+              web)
+                docker build \
+                  -f apps/web/Dockerfile \
+                  --label org.opencontainers.image.revision="$GITHUB_SHA" \
+                  --build-arg NEXT_PUBLIC_SITE_URL="$NEXT_PUBLIC_SITE_URL" \
+                  --build-arg NEXT_PUBLIC_API_BASE_URL="$NEXT_PUBLIC_API_BASE_URL" \
+                  -t "${COMPOSE_PROJECT_NAME}-web:latest" \
+                  .
+                ;;
+              api)
+                docker build \
+                  -f apps/api/Dockerfile \
+                  --label org.opencontainers.image.revision="$GITHUB_SHA" \
+                  -t "${COMPOSE_PROJECT_NAME}-api:latest" \
+                  .
+                ;;
+              mcp)
+                docker build \
+                  -f apps/mcp/Dockerfile \
+                  --label org.opencontainers.image.revision="$GITHUB_SHA" \
+                  -t "${COMPOSE_PROJECT_NAME}-mcp:latest" \
+                  .
+                ;;
+              *)
+                echo "::error::Unsupported release service '$service'"
+                exit 1
+                ;;
+            esac
+            archive_images+=("${COMPOSE_PROJECT_NAME}-${service}:latest")
           done
-          docker save \
-            "${COMPOSE_PROJECT_NAME}-web:latest" \
-            "${COMPOSE_PROJECT_NAME}-api:latest" \
-            "${COMPOSE_PROJECT_NAME}-mcp:latest" \
-            | gzip > "$RELEASE_IMAGE_ARCHIVE"
+
+          for image in "${archive_images[@]}"; do
+            docker image inspect "$image" \
+              --format "$image {{.ID}} revision={{ index .Config.Labels \"org.opencontainers.image.revision\" }}"
+          done
+          docker save "${archive_images[@]}" | gzip > "$RELEASE_IMAGE_ARCHIVE"
           ls -lh "$RELEASE_IMAGE_ARCHIVE"
 
       - name: Authenticate to Google Cloud
@@ -150,6 +313,7 @@ jobs:
           GCP_VM_ZONE: ${{ vars.GCP_VM_ZONE }}
           REMOTE_RELEASE_IMAGE_ARCHIVE: /tmp/portfolio-staging-${{ github.sha }}.tar.gz
           REMOTE_DEPLOY_SCRIPT: /tmp/portfolio-deploy-staging-${{ github.sha }}.sh
+          RELEASE_SERVICES: ${{ needs.changes.outputs.release_services }}
         run: |
           set -euo pipefail
           gcloud compute ssh "$GCP_VM_NAME" \
@@ -157,7 +321,7 @@ jobs:
             --zone "$GCP_VM_ZONE" \
             --tunnel-through-iap \
             --quiet \
-            --command "APP_DIR='$APP_DIR' RELEASE_IMAGE_ARCHIVE='$REMOTE_RELEASE_IMAGE_ARCHIVE' DEPLOY_MODE='staging' RUN_BACKUP='false' EXPECTED_IMAGE_REVISION='$GITHUB_SHA' bash '$REMOTE_DEPLOY_SCRIPT'"
+            --command "APP_DIR='$APP_DIR' RELEASE_IMAGE_ARCHIVE='$REMOTE_RELEASE_IMAGE_ARCHIVE' DEPLOY_MODE='staging' RUN_BACKUP='false' EXPECTED_IMAGE_REVISION='$GITHUB_SHA' RELEASE_SERVICES='$RELEASE_SERVICES' bash '$REMOTE_DEPLOY_SCRIPT'"
 
       - name: Open staging IAP tunnel
         env:
@@ -237,28 +401,22 @@ jobs:
         run: E2E_BASE_URL="$STAGING_BASE_URL" npm run test:e2e
 
   terraform-plan:
-    name: Terraform plan before production approval
-    needs: verify
-    if: ${{ github.event_name == 'workflow_dispatch' || vars.DEPLOY_ENABLED == 'true' }}
+    name: Terraform plan before production deploy
+    needs:
+      - changes
+      - verify
+    if: ${{ always() && (github.event_name == 'workflow_dispatch' || vars.DEPLOY_ENABLED == 'true') && needs.changes.outputs.terraform_changed == 'true' && (needs.verify.result == 'success' || needs.verify.result == 'skipped') }}
     uses: ./.github/workflows/terraform-plan.yml
     secrets: inherit
-
-  approve-production:
-    name: Await production approval
-    runs-on: ubuntu-latest
-    needs:
-      - deploy-staging
-      - terraform-plan
-    environment:
-      name: production
-    steps:
-      - name: Approval gate passed
-        run: echo "Production environment approval granted."
 
   deploy-production:
     name: Deploy production
     runs-on: ubuntu-latest
-    needs: approve-production
+    needs:
+      - changes
+      - deploy-staging
+      - terraform-plan
+    if: ${{ always() && (github.event_name == 'workflow_dispatch' || vars.DEPLOY_ENABLED == 'true') && needs.changes.outputs.app_changed == 'true' && needs['deploy-staging'].result == 'success' && (needs['terraform-plan'].result == 'success' || needs['terraform-plan'].result == 'skipped') }}
     environment:
       name: production
       url: ${{ vars.BASE_URL }}
@@ -271,6 +429,7 @@ jobs:
           GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
           GCP_VM_NAME: ${{ vars.GCP_VM_NAME }}
           GCP_VM_ZONE: ${{ vars.GCP_VM_ZONE }}
+          RELEASE_SERVICES: ${{ needs.changes.outputs.release_services }}
         run: |
           set -euo pipefail
           for name in \
@@ -279,7 +438,8 @@ jobs:
             GCP_DEPLOY_SERVICE_ACCOUNT \
             GCP_PROJECT_ID \
             GCP_VM_NAME \
-            GCP_VM_ZONE
+            GCP_VM_ZONE \
+            RELEASE_SERVICES
           do
             value="${!name:-}"
             if [ -z "$value" ]; then
@@ -297,34 +457,49 @@ jobs:
           NEXT_PUBLIC_API_BASE_URL: /api
           COMPOSE_PROJECT_NAME: portfolio-production
           RELEASE_IMAGE_ARCHIVE: /tmp/portfolio-production-images.tar.gz
+          RELEASE_SERVICES: ${{ needs.changes.outputs.release_services }}
         run: |
           set -euo pipefail
-          docker build \
-            -f apps/web/Dockerfile \
-            --label org.opencontainers.image.revision="$GITHUB_SHA" \
-            --build-arg NEXT_PUBLIC_SITE_URL="$NEXT_PUBLIC_SITE_URL" \
-            --build-arg NEXT_PUBLIC_API_BASE_URL="$NEXT_PUBLIC_API_BASE_URL" \
-            -t "${COMPOSE_PROJECT_NAME}-web:latest" \
-            .
-          docker build \
-            -f apps/api/Dockerfile \
-            --label org.opencontainers.image.revision="$GITHUB_SHA" \
-            -t "${COMPOSE_PROJECT_NAME}-api:latest" \
-            .
-          docker build \
-            -f apps/mcp/Dockerfile \
-            --label org.opencontainers.image.revision="$GITHUB_SHA" \
-            -t "${COMPOSE_PROJECT_NAME}-mcp:latest" \
-            .
-          for service in web api mcp; do
-            docker image inspect "${COMPOSE_PROJECT_NAME}-${service}:latest" \
-              --format "${COMPOSE_PROJECT_NAME}-${service}:latest {{.ID}} revision={{ index .Config.Labels \"org.opencontainers.image.revision\" }}"
+          archive_images=()
+
+          for service in $RELEASE_SERVICES; do
+            case "$service" in
+              web)
+                docker build \
+                  -f apps/web/Dockerfile \
+                  --label org.opencontainers.image.revision="$GITHUB_SHA" \
+                  --build-arg NEXT_PUBLIC_SITE_URL="$NEXT_PUBLIC_SITE_URL" \
+                  --build-arg NEXT_PUBLIC_API_BASE_URL="$NEXT_PUBLIC_API_BASE_URL" \
+                  -t "${COMPOSE_PROJECT_NAME}-web:latest" \
+                  .
+                ;;
+              api)
+                docker build \
+                  -f apps/api/Dockerfile \
+                  --label org.opencontainers.image.revision="$GITHUB_SHA" \
+                  -t "${COMPOSE_PROJECT_NAME}-api:latest" \
+                  .
+                ;;
+              mcp)
+                docker build \
+                  -f apps/mcp/Dockerfile \
+                  --label org.opencontainers.image.revision="$GITHUB_SHA" \
+                  -t "${COMPOSE_PROJECT_NAME}-mcp:latest" \
+                  .
+                ;;
+              *)
+                echo "::error::Unsupported release service '$service'"
+                exit 1
+                ;;
+            esac
+            archive_images+=("${COMPOSE_PROJECT_NAME}-${service}:latest")
           done
-          docker save \
-            "${COMPOSE_PROJECT_NAME}-web:latest" \
-            "${COMPOSE_PROJECT_NAME}-api:latest" \
-            "${COMPOSE_PROJECT_NAME}-mcp:latest" \
-            | gzip > "$RELEASE_IMAGE_ARCHIVE"
+
+          for image in "${archive_images[@]}"; do
+            docker image inspect "$image" \
+              --format "$image {{.ID}} revision={{ index .Config.Labels \"org.opencontainers.image.revision\" }}"
+          done
+          docker save "${archive_images[@]}" | gzip > "$RELEASE_IMAGE_ARCHIVE"
           ls -lh "$RELEASE_IMAGE_ARCHIVE"
 
       - name: Authenticate to Google Cloud
@@ -373,6 +548,7 @@ jobs:
           GCP_VM_ZONE: ${{ vars.GCP_VM_ZONE }}
           REMOTE_RELEASE_IMAGE_ARCHIVE: /tmp/portfolio-production-${{ github.sha }}.tar.gz
           REMOTE_DEPLOY_SCRIPT: /tmp/portfolio-deploy-production-${{ github.sha }}.sh
+          RELEASE_SERVICES: ${{ needs.changes.outputs.release_services }}
         run: |
           set -euo pipefail
           gcloud compute ssh "$GCP_VM_NAME" \
@@ -380,7 +556,7 @@ jobs:
             --zone "$GCP_VM_ZONE" \
             --tunnel-through-iap \
             --quiet \
-            --command "APP_DIR='$APP_DIR' RELEASE_IMAGE_ARCHIVE='$REMOTE_RELEASE_IMAGE_ARCHIVE' DEPLOY_MODE='production' RUN_BACKUP='true' EXPECTED_IMAGE_REVISION='$GITHUB_SHA' bash '$REMOTE_DEPLOY_SCRIPT'"
+            --command "APP_DIR='$APP_DIR' RELEASE_IMAGE_ARCHIVE='$REMOTE_RELEASE_IMAGE_ARCHIVE' DEPLOY_MODE='production' RUN_BACKUP='true' EXPECTED_IMAGE_REVISION='$GITHUB_SHA' RELEASE_SERVICES='$RELEASE_SERVICES' bash '$REMOTE_DEPLOY_SCRIPT'"
 
       - name: Open production IAP tunnel
         env:
