@@ -85,9 +85,6 @@ jobs:
                   verify=true
                   ;;
                 deploy/compose/*|.dockerignore)
-                  web=true
-                  api=true
-                  mcp=true
                   deploy=true
                   verify=true
                   ;;
