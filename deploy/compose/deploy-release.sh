@@ -8,9 +8,11 @@ set -euo pipefail
 : "${EXPECTED_IMAGE_REVISION:?EXPECTED_IMAGE_REVISION is required}"
 
 cleanup() {
-  rm -f "$RELEASE_IMAGE_ARCHIVE"
+  if [ "${PORTFOLIO_DEPLOY_AS_USER:-}" != "1" ]; then
+    rm -f "$RELEASE_IMAGE_ARCHIVE" || true
+  fi
   case "$0" in
-    /tmp/*) rm -f "$0" ;;
+    /tmp/*) rm -f "$0" || true ;;
   esac
 }
 trap cleanup EXIT
