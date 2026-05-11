@@ -273,6 +273,20 @@ jobs:
       - name: Setup Google Cloud CLI
         uses: google-github-actions/setup-gcloud@v3
 
+      - name: Prepare staging OS Login SSH key
+        env:
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          if [ ! -f ~/.ssh/google_compute_engine ]; then
+            ssh-keygen -t rsa -b 3072 -N "" -f ~/.ssh/google_compute_engine -C "github-actions-${GITHUB_RUN_ID}"
+          fi
+          gcloud compute os-login ssh-keys add \
+            --project "$GCP_PROJECT_ID" \
+            --key-file ~/.ssh/google_compute_engine.pub \
+            --ttl=2h
+
       - name: Upload staging images through IAP
         env:
           GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
@@ -507,6 +521,20 @@ jobs:
 
       - name: Setup Google Cloud CLI
         uses: google-github-actions/setup-gcloud@v3
+
+      - name: Prepare production OS Login SSH key
+        env:
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          if [ ! -f ~/.ssh/google_compute_engine ]; then
+            ssh-keygen -t rsa -b 3072 -N "" -f ~/.ssh/google_compute_engine -C "github-actions-${GITHUB_RUN_ID}"
+          fi
+          gcloud compute os-login ssh-keys add \
+            --project "$GCP_PROJECT_ID" \
+            --key-file ~/.ssh/google_compute_engine.pub \
+            --ttl=2h
 
       - name: Upload production images through IAP
         env:
