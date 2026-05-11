@@ -156,4 +156,86 @@ func TestAPIIntegrationWithPostgres(t *testing.T) {
 	if post.Slug != slug || post.Status != "published" || !strings.Contains(post.ContentMarkdown, "integration test") {
 		t.Fatalf("unexpected public post = %#v", post)
 	}
+
+	comment := httptest.NewRecorder()
+	commentReq := httptest.NewRequest(http.MethodPost, "/api/posts/"+slug+"/comments", strings.NewReader(`{
+		"displayName":"Integration Reader",
+		"body":"This comment should move through moderation.",
+		"turnstileToken":"test-token"
+	}`))
+	commentReq.Header.Set("Content-Type", "application/json")
+	handler.ServeHTTP(comment, commentReq)
+	if comment.Code != http.StatusAccepted {
+		t.Fatalf("create comment status = %d, body = %s", comment.Code, comment.Body.String())
+	}
+
+	adminComments := httptest.NewRecorder()
+	adminCommentsReq := httptest.NewRequest(http.MethodGet, "/api/admin/comments?status=pending", nil)
+	for _, cookie := range cookies {
+		adminCommentsReq.AddCookie(cookie)
+	}
+	handler.ServeHTTP(adminComments, adminCommentsReq)
+	if adminComments.Code != http.StatusOK {
+		t.Fatalf("admin comments status = %d, body = %s", adminComments.Code, adminComments.Body.String())
+	}
+	var pendingComments []struct {
+		ID          string `json:"id"`
+		DisplayName string `json:"displayName"`
+		Body        string `json:"body"`
+		Status      string `json:"status"`
+	}
+	if err := json.Unmarshal(adminComments.Body.Bytes(), &pendingComments); err != nil {
+		t.Fatalf("invalid admin comments JSON: %v", err)
+	}
+	if len(pendingComments) != 1 || pendingComments[0].Status != "pending" {
+		t.Fatalf("pending comments = %#v, want one pending comment", pendingComments)
+	}
+
+	moderate := httptest.NewRecorder()
+	moderateReq := httptest.NewRequest(http.MethodPut, "/api/admin/comments/"+pendingComments[0].ID+"/moderate", strings.NewReader(`{"status":"approved"}`))
+	moderateReq.Header.Set("Content-Type", "application/json")
+	moderateReq.Header.Set("Origin", "http://localhost:3000")
+	for _, cookie := range cookies {
+		moderateReq.AddCookie(cookie)
+	}
+	handler.ServeHTTP(moderate, moderateReq)
+	if moderate.Code != http.StatusOK {
+		t.Fatalf("moderate comment status = %d, body = %s", moderate.Code, moderate.Body.String())
+	}
+
+	pendingAfterModeration := httptest.NewRecorder()
+	pendingAfterModerationReq := httptest.NewRequest(http.MethodGet, "/api/admin/comments?status=pending", nil)
+	for _, cookie := range cookies {
+		pendingAfterModerationReq.AddCookie(cookie)
+	}
+	handler.ServeHTTP(pendingAfterModeration, pendingAfterModerationReq)
+	if pendingAfterModeration.Code != http.StatusOK {
+		t.Fatalf("pending comments after moderation status = %d, body = %s", pendingAfterModeration.Code, pendingAfterModeration.Body.String())
+	}
+	var remainingPending []struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(pendingAfterModeration.Body.Bytes(), &remainingPending); err != nil {
+		t.Fatalf("invalid pending comments after moderation JSON: %v", err)
+	}
+	if len(remainingPending) != 0 {
+		t.Fatalf("remaining pending comments = %#v, want none", remainingPending)
+	}
+
+	publicComments := httptest.NewRecorder()
+	handler.ServeHTTP(publicComments, httptest.NewRequest(http.MethodGet, "/api/posts/"+slug+"/comments", nil))
+	if publicComments.Code != http.StatusOK {
+		t.Fatalf("public comments status = %d, body = %s", publicComments.Code, publicComments.Body.String())
+	}
+	var approvedComments []struct {
+		DisplayName string `json:"displayName"`
+		Body        string `json:"body"`
+		Status      string `json:"status"`
+	}
+	if err := json.Unmarshal(publicComments.Body.Bytes(), &approvedComments); err != nil {
+		t.Fatalf("invalid public comments JSON: %v", err)
+	}
+	if len(approvedComments) != 1 || approvedComments[0].DisplayName != "Integration Reader" {
+		t.Fatalf("approved comments = %#v, want approved integration comment", approvedComments)
+	}
 }

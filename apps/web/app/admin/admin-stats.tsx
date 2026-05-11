@@ -5,13 +5,21 @@ import { FileText, MessageSquare, ShieldCheck, Sparkles } from "lucide-react";
 import { apiUrl } from "../api-url";
 import { Panel } from "./_components/admin-shell";
 import { AdminPost } from "./posts/post-model";
+import { CommentStatusLike, countPendingComments } from "./comments/comment-model";
+
+export { countPendingComments } from "./comments/comment-model";
 
 type AdminStatsProps = {
   featuredProjectsCount: number;
 };
 
+export function countPublishedPosts(posts: Array<Pick<AdminPost, "status">>) {
+  return posts.filter((post) => post.status === "published").length;
+}
+
 export function AdminStats({ featuredProjectsCount }: AdminStatsProps) {
   const [publishedPostsCount, setPublishedPostsCount] = useState<number | null>(null);
+  const [pendingCommentsCount, setPendingCommentsCount] = useState<number | null>(null);
 
   useEffect(() => {
     let ignore = false;
@@ -25,7 +33,7 @@ export function AdminStats({ featuredProjectsCount }: AdminStatsProps) {
       })
       .then((posts) => {
         if (!ignore) {
-          setPublishedPostsCount(posts.filter((post) => post.status === "published").length);
+          setPublishedPostsCount(countPublishedPosts(posts));
         }
       })
       .catch(() => {
@@ -39,10 +47,36 @@ export function AdminStats({ featuredProjectsCount }: AdminStatsProps) {
     };
   }, []);
 
+  useEffect(() => {
+    let ignore = false;
+
+    fetch(apiUrl("/admin/comments?status=pending"), { credentials: "include" })
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error("comments unavailable");
+        }
+        return response.json() as Promise<CommentStatusLike[]>;
+      })
+      .then((comments) => {
+        if (!ignore) {
+          setPendingCommentsCount(countPendingComments(comments));
+        }
+      })
+      .catch(() => {
+        if (!ignore) {
+          setPendingCommentsCount(0);
+        }
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
   const stats = [
     { label: "Published posts", value: publishedPostsCount === null ? "..." : publishedPostsCount, icon: FileText },
     { label: "Featured projects", value: featuredProjectsCount, icon: Sparkles },
-    { label: "Pending comments", value: 0, icon: MessageSquare },
+    { label: "Pending comments", value: pendingCommentsCount === null ? "..." : pendingCommentsCount, icon: MessageSquare },
     { label: "Security checks", value: 4, icon: ShieldCheck }
   ];
 

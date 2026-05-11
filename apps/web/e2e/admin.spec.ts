@@ -329,29 +329,72 @@ test.describe("admin surface", () => {
     await expect(page.getByText("Published posts").locator("..").getByText("3", { exact: true })).toBeVisible();
   });
 
-  test("moderates pending comments", async ({ page }) => {
+  test("counts pending comments from the moderation API on the dashboard", async ({ page }) => {
     await signInByCookie(page);
 
+    await page.route("**/api/admin/posts", async (route) => {
+      await route.fulfill({ status: 200, contentType: "application/json", body: "[]" });
+    });
     await page.route("**/api/admin/comments?status=pending", async (route) => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
         body: JSON.stringify([
           {
-            id: "comment-123",
-            postId: "post-123",
-            postTitle: "Admin E2E Post",
-            postSlug: "admin-e2e-post",
-            displayName: "Reader",
-            body: "Looks useful.",
+            id: "comment-1",
+            postId: "post-1",
+            postTitle: "First post",
+            postSlug: "first-post",
+            displayName: "Reader One",
+            body: "First pending comment.",
             status: "pending",
             createdAt: "2026-05-05T10:00:00Z"
+          },
+          {
+            id: "comment-2",
+            postId: "post-2",
+            postTitle: "Second post",
+            postSlug: "second-post",
+            displayName: "Reader Two",
+            body: "Second pending comment.",
+            status: "pending",
+            createdAt: "2026-05-05T10:01:00Z"
           }
         ])
       });
     });
+
+    await page.goto("/admin");
+
+    await expect(page.getByText("Pending comments").locator("..").getByText("2", { exact: true })).toBeVisible();
+  });
+
+  test("moderates pending comments", async ({ page }) => {
+    await signInByCookie(page);
+
+    let pendingComments = [
+      {
+        id: "comment-123",
+        postId: "post-123",
+        postTitle: "Admin E2E Post",
+        postSlug: "admin-e2e-post",
+        displayName: "Reader",
+        body: "Looks useful.",
+        status: "pending",
+        createdAt: "2026-05-05T10:00:00Z"
+      }
+    ];
+
+    await page.route("**/api/admin/comments?status=pending", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(pendingComments)
+      });
+    });
     await page.route("**/api/admin/comments/comment-123/moderate", async (route) => {
       const moderatedStatus = (route.request().postDataJSON() as { status: string }).status;
+      pendingComments = [];
       await route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -371,5 +414,7 @@ test.describe("admin surface", () => {
     ]);
 
     expect((request.postDataJSON() as { status: string }).status).toBe("approved");
+    await expect(page.getByText("Looks useful.")).toHaveCount(0);
+    await expect(page.getByText("No comments in this queue.")).toBeVisible();
   });
 });
