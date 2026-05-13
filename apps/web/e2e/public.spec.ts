@@ -53,12 +53,51 @@ test.describe("public website", () => {
     expect((await aiContext.json()).person.name).toBe("Blazej Pajor");
   });
 
-  test("keeps public comments read-only for the v1 release", async ({ page }) => {
-    await page.goto("/blog/designing-low-cost-production-portfolio");
+  test("submits a public comment for moderation", async ({ page }) => {
+    const post = {
+      id: "commentable-post",
+      slug: "commentable-writing",
+      title: "Commentable Writing",
+      excerpt: "Public comment flow test.",
+      contentMarkdown: "Commentable body.",
+      status: "published",
+      publishedAt: "2026-05-05T10:00:00Z",
+      tags: ["Comments"],
+      createdAt: "2026-05-05T10:00:00Z",
+      updatedAt: "2026-05-05T10:00:00Z"
+    };
+    let submittedBody: unknown;
+
+    await page.route("**/api/posts/commentable-writing", async (route) => {
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(post) });
+    });
+    await page.route("**/api/posts/commentable-writing/comments", async (route) => {
+      if (route.request().method() === "POST") {
+        submittedBody = route.request().postDataJSON();
+        await route.fulfill({
+          status: 202,
+          contentType: "application/json",
+          body: JSON.stringify({ id: "pending-comment", status: "pending" })
+        });
+        return;
+      }
+
+      await route.fulfill({ status: 200, contentType: "application/json", body: "[]" });
+    });
+
+    await page.goto("/blog/commentable-writing");
 
     await expect(page.getByRole("heading", { name: "Discussion" })).toBeVisible();
-    await expect(page.getByText(/public comments are read-only/i)).toBeVisible();
-    await expect(page.getByRole("button", { name: /submit comment/i })).toHaveCount(0);
+    await page.getByLabel("Display name").fill(" Reader ");
+    await page.getByLabel("Comment").fill(" Useful post. ");
+    await page.getByRole("button", { name: "Submit comment" }).click();
+
+    expect(submittedBody).toEqual({
+      displayName: "Reader",
+      body: "Useful post.",
+      turnstileToken: ""
+    });
+    await expect(page.getByText("Comment sent for moderation.")).toBeVisible();
   });
 
   test("renders API-published posts on the public blog", async ({ page }) => {
