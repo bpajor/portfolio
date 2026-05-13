@@ -104,6 +104,20 @@ if [ "$DEPLOY_MODE" = "staging" ]; then
         ;;
     esac
   done
+
+  log "Ensuring staging Turnstile test keys are configured"
+  for entry in \
+    NEXT_PUBLIC_TURNSTILE_SITE_KEY=1x00000000000000000000AA \
+    TURNSTILE_SECRET_KEY=1x0000000000000000000000000000000AA
+  do
+    key="${entry%%=*}"
+    value="${entry#*=}"
+    if grep -qE "^${key}=" .env; then
+      sed -i "s|^${key}=.*|${key}=${value}|" .env
+    else
+      printf '%s=%s\n' "$key" "$value" >> .env
+    fi
+  done
 fi
 
 log "Validating $DEPLOY_MODE environment"

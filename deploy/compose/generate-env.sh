@@ -28,6 +28,7 @@ esac
 domain="${DOMAIN:?DOMAIN is required}"
 admin_email="${ADMIN_EMAIL:?ADMIN_EMAIL is required}"
 turnstile_secret="${TURNSTILE_SECRET_KEY:?TURNSTILE_SECRET_KEY is required}"
+turnstile_site_key="${TURNSTILE_SITE_KEY:-${NEXT_PUBLIC_TURNSTILE_SITE_KEY:-}}"
 backup_bucket="${BACKUP_BUCKET:?BACKUP_BUCKET is required}"
 
 case "$backup_bucket" in
@@ -48,6 +49,7 @@ if [ "$mode" = "staging" ]; then
   https_port="127.0.0.1:18443"
   site_url="${STAGING_SITE_URL:-http://127.0.0.1:3000}"
   allowed_origins="${site_url},https://*.cloudshell.dev"
+  turnstile_site_key="${turnstile_site_key:-1x00000000000000000000AA}"
 else
   compose_project="portfolio-production"
   site_address="\"${domain}, www.${domain}\""
@@ -55,6 +57,7 @@ else
   https_port="443"
   site_url="https://${domain}"
   allowed_origins="${site_url},https://www.${domain}"
+  turnstile_site_key="${turnstile_site_key:?TURNSTILE_SITE_KEY or NEXT_PUBLIC_TURNSTILE_SITE_KEY is required for production}"
 fi
 
 cat <<EOF
@@ -65,6 +68,7 @@ HTTPS_PORT=${https_port}
 
 NEXT_PUBLIC_SITE_URL=${site_url}
 NEXT_PUBLIC_API_BASE_URL=/api
+NEXT_PUBLIC_TURNSTILE_SITE_KEY=${turnstile_site_key}
 
 API_ALLOWED_ORIGINS=${allowed_origins}
 API_COOKIE_SECURE=true
