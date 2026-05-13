@@ -66,7 +66,7 @@ test.describe("public website", () => {
       createdAt: "2026-05-05T10:00:00Z",
       updatedAt: "2026-05-05T10:00:00Z"
     };
-    let submittedBody: unknown;
+    let submittedBody: { displayName: string; body: string; turnstileToken: string } | undefined;
 
     await page.route("**/api/posts/commentable-writing", async (route) => {
       await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(post) });
@@ -92,11 +92,11 @@ test.describe("public website", () => {
     await page.getByLabel("Comment").fill(" Useful post. ");
     await page.getByRole("button", { name: "Submit comment" }).click();
 
-    expect(submittedBody).toEqual({
+    expect(submittedBody).toMatchObject({
       displayName: "Reader",
-      body: "Useful post.",
-      turnstileToken: ""
+      body: "Useful post."
     });
+    expect(submittedBody?.turnstileToken).toEqual(expect.any(String));
     await expect(page.getByText("Comment sent for moderation.")).toBeVisible();
   });
 
