@@ -29,6 +29,7 @@ Edit `.env` and replace all secrets. For a real domain, set:
 SITE_ADDRESS="bpajor.dev, www.bpajor.dev"
 NEXT_PUBLIC_SITE_URL=https://bpajor.dev
 NEXT_PUBLIC_API_BASE_URL=/api
+NEXT_PUBLIC_TURNSTILE_SITE_KEY=replace-with-turnstile-site-key
 API_ALLOWED_ORIGINS=https://bpajor.dev,https://www.bpajor.dev
 MCP_ALLOWED_ORIGINS=https://bpajor.dev,https://www.bpajor.dev
 ```
@@ -38,6 +39,7 @@ You can generate a first-pass environment file with strong random secrets:
 ```bash
 DOMAIN=bpajor.dev \
 ADMIN_EMAIL=blazej122@vp.pl \
+TURNSTILE_SITE_KEY=replace-with-turnstile-site-key \
 TURNSTILE_SECRET_KEY=replace-with-turnstile-secret \
 BACKUP_BUCKET=gs://your-backup-bucket \
 ./generate-env.sh production > .env

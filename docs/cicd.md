@@ -33,6 +33,7 @@ Each environment needs this variable:
 - `GCP_PROJECT_ID`: GCP project that hosts the VM, for example `bpajor-portfolio-prod`.
 - `GCP_VM_NAME`: Compute Engine VM name, for example `portfolio-vm`.
 - `GCP_VM_ZONE`: Compute Engine VM zone, for example `us-central1-a`.
+- `NEXT_PUBLIC_TURNSTILE_SITE_KEY`: Cloudflare Turnstile site key used by the public comment form. Staging defaults to Cloudflare's public test site key if unset; production must use the real site key for `bpajor.dev`.
 
 Each environment needs these secrets:
 

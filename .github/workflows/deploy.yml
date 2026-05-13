@@ -306,6 +306,7 @@ jobs:
         env:
           NEXT_PUBLIC_SITE_URL: ${{ vars.BASE_URL }}
           NEXT_PUBLIC_API_BASE_URL: /api
+          NEXT_PUBLIC_TURNSTILE_SITE_KEY: ${{ vars.NEXT_PUBLIC_TURNSTILE_SITE_KEY || '1x00000000000000000000AA' }}
           COMPOSE_PROJECT_NAME: portfolio-staging
           RELEASE_IMAGE_ARCHIVE: /tmp/portfolio-staging-images.tar.gz
           RELEASE_SERVICES: ${{ needs.changes.outputs.release_services }}
@@ -321,6 +322,7 @@ jobs:
                   --label org.opencontainers.image.revision="$GITHUB_SHA" \
                   --build-arg NEXT_PUBLIC_SITE_URL="$NEXT_PUBLIC_SITE_URL" \
                   --build-arg NEXT_PUBLIC_API_BASE_URL="$NEXT_PUBLIC_API_BASE_URL" \
+                  --build-arg NEXT_PUBLIC_TURNSTILE_SITE_KEY="$NEXT_PUBLIC_TURNSTILE_SITE_KEY" \
                   -t "${COMPOSE_PROJECT_NAME}-web:latest" \
                   .
                 ;;
@@ -529,6 +531,7 @@ jobs:
           GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
           GCP_VM_NAME: ${{ vars.GCP_VM_NAME }}
           GCP_VM_ZONE: ${{ vars.GCP_VM_ZONE }}
+          NEXT_PUBLIC_TURNSTILE_SITE_KEY: ${{ vars.NEXT_PUBLIC_TURNSTILE_SITE_KEY }}
           RELEASE_SERVICES: ${{ needs.changes.outputs.release_services }}
         run: |
           set -euo pipefail
@@ -539,6 +542,7 @@ jobs:
             GCP_PROJECT_ID \
             GCP_VM_NAME \
             GCP_VM_ZONE \
+            NEXT_PUBLIC_TURNSTILE_SITE_KEY \
             RELEASE_SERVICES
           do
             value="${!name:-}"
@@ -555,6 +559,7 @@ jobs:
         env:
           NEXT_PUBLIC_SITE_URL: ${{ vars.BASE_URL }}
           NEXT_PUBLIC_API_BASE_URL: /api
+          NEXT_PUBLIC_TURNSTILE_SITE_KEY: ${{ vars.NEXT_PUBLIC_TURNSTILE_SITE_KEY }}
           COMPOSE_PROJECT_NAME: portfolio-production
           RELEASE_IMAGE_ARCHIVE: /tmp/portfolio-production-images.tar.gz
           RELEASE_SERVICES: ${{ needs.changes.outputs.release_services }}
@@ -570,6 +575,7 @@ jobs:
                   --label org.opencontainers.image.revision="$GITHUB_SHA" \
                   --build-arg NEXT_PUBLIC_SITE_URL="$NEXT_PUBLIC_SITE_URL" \
                   --build-arg NEXT_PUBLIC_API_BASE_URL="$NEXT_PUBLIC_API_BASE_URL" \
+                  --build-arg NEXT_PUBLIC_TURNSTILE_SITE_KEY="$NEXT_PUBLIC_TURNSTILE_SITE_KEY" \
                   -t "${COMPOSE_PROJECT_NAME}-web:latest" \
                   .
                 ;;

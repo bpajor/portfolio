@@ -1,9 +1,26 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 
 import { apiUrl } from "../../api-url";
 import { canSubmitComment, normalizeCommentDraft } from "./comment-form-model";
+
+declare global {
+  interface Window {
+    turnstile?: {
+      render: (
+        element: HTMLElement,
+        options: {
+          sitekey: string;
+          callback: (token: string) => void;
+          "expired-callback": () => void;
+          "error-callback": () => void;
+        }
+      ) => string;
+      reset: (widgetId?: string) => void;
+    };
+  }
+}
 
 type Comment = {
   id: string;
@@ -12,14 +29,20 @@ type Comment = {
   createdAt: string;
 };
 
+const turnstileSiteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? "";
+const turnstileScriptSrc = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
+
 export function CommentsSection({ slug }: { slug: string }) {
   const [comments, setComments] = useState<Comment[]>([]);
   const [displayName, setDisplayName] = useState("");
   const [body, setBody] = useState("");
   const [status, setStatus] = useState<"idle" | "submitting" | "sent" | "error">("idle");
+  const [turnstileToken, setTurnstileToken] = useState("");
+  const turnstileRef = useRef<HTMLDivElement | null>(null);
+  const turnstileWidgetId = useRef<string | null>(null);
 
   const draft = { displayName, body };
-  const canSubmit = canSubmitComment(draft) && status !== "submitting";
+  const canSubmit = canSubmitComment(draft) && status !== "submitting" && (!turnstileSiteKey || turnstileToken.length > 0);
 
   useEffect(() => {
     let isMounted = true;
@@ -41,6 +64,44 @@ export function CommentsSection({ slug }: { slug: string }) {
     };
   }, [slug]);
 
+  useEffect(() => {
+    if (!turnstileSiteKey || !turnstileRef.current || turnstileWidgetId.current) {
+      return;
+    }
+
+    let cancelled = false;
+
+    function renderTurnstile() {
+      if (cancelled || !turnstileRef.current || !window.turnstile || turnstileWidgetId.current) {
+        return;
+      }
+      turnstileWidgetId.current = window.turnstile.render(turnstileRef.current, {
+        sitekey: turnstileSiteKey,
+        callback: setTurnstileToken,
+        "expired-callback": () => setTurnstileToken(""),
+        "error-callback": () => setTurnstileToken("")
+      });
+    }
+
+    if (window.turnstile) {
+      renderTurnstile();
+    } else {
+      let script = document.querySelector<HTMLScriptElement>(`script[src="${turnstileScriptSrc}"]`);
+      if (!script) {
+        script = document.createElement("script");
+        script.src = turnstileScriptSrc;
+        script.async = true;
+        script.defer = true;
+        document.head.appendChild(script);
+      }
+      script.addEventListener("load", renderTurnstile, { once: true });
+    }
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   async function submitComment(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!canSubmitComment(draft)) {
@@ -54,7 +115,7 @@ export function CommentsSection({ slug }: { slug: string }) {
       const response = await fetch(apiUrl(`/posts/${slug}/comments`), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...normalized, turnstileToken: "" })
+        body: JSON.stringify({ ...normalized, turnstileToken })
       });
       if (!response.ok) {
         throw new Error("comment rejected");
@@ -62,6 +123,8 @@ export function CommentsSection({ slug }: { slug: string }) {
       setDisplayName("");
       setBody("");
       setStatus("sent");
+      setTurnstileToken("");
+      window.turnstile?.reset(turnstileWidgetId.current ?? undefined);
     } catch {
       setStatus("error");
     }
@@ -123,6 +186,7 @@ export function CommentsSection({ slug }: { slug: string }) {
           />
         </div>
         <div className="flex flex-wrap items-center gap-3">
+          {turnstileSiteKey ? <div ref={turnstileRef} className="min-h-16" /> : null}
           <button
             type="submit"
             disabled={!canSubmit}
