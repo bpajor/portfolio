@@ -29,7 +29,7 @@
     {
       "id": "blog-ssr-api-seo",
       "title": "Render API-published blog posts in SEO-visible server paths",
-      "status": "pending",
+      "status": "completed",
       "priority": "high",
       "goal": "Make admin-published posts visible to users, Google, crawlers, RSS, sitemap, and LLM assets.",
       "scope": [
@@ -52,6 +52,11 @@
         "API integration tests for published post fields needed by SEO.",
         "Playwright E2E checking rendered HTML contains an API-published post.",
         "Playwright or API checks for sitemap, RSS, llms.txt, and ai-context.json."
+      ],
+      "notes": [
+        "Public blog routes now fetch published posts server-side and render API content into the initial HTML when the API is available.",
+        "Sitemap, RSS, llms.txt, and ai-context.json now use API-published posts with static fallback when the API is unavailable.",
+        "Blog detail metadata and JSON-LD can use API post SEO title, SEO description, tags, and markdown-derived article sections."
       ]
     },
     {

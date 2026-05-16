@@ -8,12 +8,21 @@ export type PublicPost = {
   contentMarkdown?: string;
   status: "published";
   publishedAt?: string;
+  seoTitle?: string;
+  seoDescription?: string;
   tags: string[];
 };
 
 export type MarkdownSection = {
   heading: string;
   body: string;
+};
+
+export type SeoBlogPost = BlogPost & {
+  id?: string;
+  contentMarkdown?: string;
+  seoTitle?: string;
+  seoDescription?: string;
 };
 
 export function staticPostToPublicPost(post: BlogPost): PublicPost {
@@ -25,6 +34,39 @@ export function staticPostToPublicPost(post: BlogPost): PublicPost {
     contentMarkdown: post.sections.map((section) => `## ${section.heading}\n\n${section.body}`).join("\n\n"),
     status: "published",
     publishedAt: post.publishedAt,
+    tags: post.tags
+  };
+}
+
+export function publicPostToBlogPost(post: PublicPost): SeoBlogPost {
+  const sections = markdownSections(post.contentMarkdown ?? "");
+
+  return {
+    id: post.id,
+    slug: post.slug,
+    title: post.title,
+    excerpt: post.excerpt,
+    contentMarkdown: post.contentMarkdown,
+    publishedAt: post.publishedAt ?? new Date().toISOString(),
+    readingTime: readingTime(post.contentMarkdown ?? post.excerpt),
+    tags: post.tags,
+    sections: sections.length > 0 ? sections : [{ heading: "Article", body: post.excerpt }],
+    seoTitle: post.seoTitle,
+    seoDescription: post.seoDescription
+  };
+}
+
+export function blogPostToPublicPost(post: SeoBlogPost): PublicPost {
+  return {
+    id: post.id ?? post.slug,
+    slug: post.slug,
+    title: post.title,
+    excerpt: post.excerpt,
+    contentMarkdown: post.contentMarkdown ?? post.sections.map((section) => `## ${section.heading}\n\n${section.body}`).join("\n\n"),
+    status: "published",
+    publishedAt: post.publishedAt,
+    seoTitle: post.seoTitle,
+    seoDescription: post.seoDescription,
     tags: post.tags
   };
 }

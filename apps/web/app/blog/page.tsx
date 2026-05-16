@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { PageIntro, SiteFrame } from "../_components/site-frame";
 import { JsonLd, breadcrumbJsonLd, pageMetadata } from "../seo";
 import { BlogList } from "./blog-list";
+import { getPublishedPublicPosts } from "./server-posts";
 
 const title = "Writing";
 const description =
@@ -13,7 +14,11 @@ export const metadata: Metadata = pageMetadata({
   path: "/blog"
 });
 
-export default function BlogPage() {
+export const dynamic = "force-dynamic";
+
+export default async function BlogPage() {
+  const posts = await getPublishedPublicPosts({ fallbackToStatic: false });
+
   return (
     <SiteFrame>
       <JsonLd
@@ -28,7 +33,7 @@ export default function BlogPage() {
         body="Notes on backend architecture, GCP operations, LLM systems, and the process of building this portfolio as a small but real production platform."
       />
 
-      <BlogList />
+      <BlogList initialPosts={posts} />
     </SiteFrame>
   );
 }

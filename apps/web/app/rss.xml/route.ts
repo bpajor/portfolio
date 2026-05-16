@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { absoluteUrl, siteName } from "../seo";
-import { posts } from "../site-data";
+import { getPublishedSeoPosts } from "../blog/server-posts";
 
-export const dynamic = "force-static";
+export const dynamic = "force-dynamic";
 
 function escapeXml(value: string) {
   return value
@@ -13,7 +13,8 @@ function escapeXml(value: string) {
     .replace(/'/g, "&apos;");
 }
 
-export function GET() {
+export async function GET() {
+  const posts = await getPublishedSeoPosts();
   const items = posts
     .map((post) => {
       const url = absoluteUrl(`/blog/${post.slug}`);
