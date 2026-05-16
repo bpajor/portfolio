@@ -13,9 +13,25 @@ permissions:
   id-token: write
 
 jobs:
+  approve:
+    name: Approve Terraform apply
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+    steps:
+      - name: Approval gate
+        run: |
+          {
+            echo "## Terraform Apply Approval"
+            echo
+            echo "This job exists only to require the protected production environment approval before Terraform changes are applied."
+            echo "The apply job reads Terraform-specific vars and secrets from the terraform environment after this gate passes."
+          } >> "$GITHUB_STEP_SUMMARY"
+
   apply:
     name: Terraform apply
     runs-on: ubuntu-latest
+    needs: approve
     environment:
       name: terraform
     env:

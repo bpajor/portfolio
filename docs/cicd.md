@@ -145,24 +145,25 @@ Recommended GCP setup:
 - Keep VM firewall rules limited to SSH from IAP/trusted admin source ranges and HTTP/HTTPS from Cloudflare.
 - Run Terraform from GitHub with Workload Identity Federation and a narrowly scoped service account instead of a JSON key.
 
-Terraform plan runs in a separate manual GitHub Actions workflow named `Terraform Plan`. It requires a dedicated GCS remote state bucket and Workload Identity Federation. The workflow prints the plan in the Actions log, writes it to the run summary, and uploads the full plan as an artifact. It does not run `terraform apply`.
+Terraform plan runs in a separate manual GitHub Actions workflow named `Terraform Plan`. It requires a dedicated GCS remote state bucket and Workload Identity Federation. The workflow prints the plan in the Actions log, writes it to the run summary, and uploads the full plan as an artifact.
 
-The deploy workflow also calls the same Terraform plan workflow before the `production` approval gate. Reviewers should inspect the deploy run summary or the `terraform-plan` artifact before approving production.
+The deploy workflow also calls Terraform plan before deployment. When infrastructure changes are present, it then calls Terraform apply behind a protected `production` approval gate. The apply job itself reads Terraform-specific variables and secrets from the GitHub `terraform` environment after the approval gate has passed.
 
 Before enabling any Terraform apply workflow:
 
 - migrate local Terraform state to the GCS backend,
 - configure the GitHub `terraform` environment variables and secrets documented in `infra/gcp/README.md`,
 - run `Terraform Plan` and review the plan output in GitHub,
-- keep production apply behind a protected GitHub environment approval.
+- keep production apply behind a protected GitHub environment approval,
+- grant the Terraform CI service account the project roles needed by the managed resources, including `roles/serviceusage.serviceUsageAdmin` when Terraform manages `google_project_service` API enablement.
 
-Possible future Terraform CI service account roles:
+Terraform CI service account roles depend on the resources currently managed by Terraform. Keep them project-scoped and avoid owner/editor. Current examples:
 
 - `roles/compute.admin` scoped to the deployment project only when VM lifecycle changes are automated.
+- `roles/serviceusage.serviceUsageAdmin` when Terraform enables required Google APIs.
+- `roles/artifactregistry.admin` when Terraform creates and manages Artifact Registry repositories and repository IAM.
 - `roles/dns.admin` only if DNS zones are managed from CI.
 - `roles/iam.serviceAccountUser` only for attaching service accounts to managed resources.
-
-For now, Terraform apply should continue to be run manually from a trusted local machine until an apply workflow is explicitly added and protected. The GitHub workflow only publishes reviewable plan output.
 
 ## Rollback
 
