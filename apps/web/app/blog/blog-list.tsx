@@ -9,8 +9,8 @@ import { PublicPost, formatPublishedDate, readingTime, staticPostToPublicPost } 
 
 const fallbackPosts = staticPosts.map(staticPostToPublicPost);
 
-export function BlogList() {
-  const [posts, setPosts] = useState<PublicPost[] | null>(null);
+export function BlogList({ initialPosts = null }: { initialPosts?: PublicPost[] | null }) {
+  const [posts, setPosts] = useState<PublicPost[] | null>(initialPosts);
 
   useEffect(() => {
     let ignore = false;

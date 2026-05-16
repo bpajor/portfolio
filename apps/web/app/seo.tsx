@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { posts, profile, projects, type BlogPost, type Project } from "./site-data";
+import { SeoBlogPost } from "./blog/blog-model";
 
 export const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 export const siteName = "Blazej Pajor";
@@ -168,7 +169,7 @@ export function blogPostJsonLd(post: BlogPost) {
   };
 }
 
-export function publicRoutes() {
+export function publicRoutes(writingPosts: Array<BlogPost | SeoBlogPost> = posts) {
   return [
     { path: "/", changeFrequency: "weekly" as const, priority: 1 },
     { path: "/about", changeFrequency: "monthly" as const, priority: 0.8 },
@@ -180,7 +181,7 @@ export function publicRoutes() {
       changeFrequency: "monthly" as const,
       priority: 0.7
     })),
-    ...posts.map((post) => ({
+    ...writingPosts.map((post) => ({
       path: `/blog/${post.slug}`,
       changeFrequency: "monthly" as const,
       priority: 0.75,

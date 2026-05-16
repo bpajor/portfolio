@@ -57,6 +57,22 @@ describe("SEO and GEO helpers", () => {
     }
   });
 
+  it("can include API-published posts in sitemap routes", () => {
+    const routePaths = publicRoutes([
+      {
+        slug: "api-seo-post",
+        title: "API SEO Post",
+        excerpt: "An API-published article.",
+        publishedAt: "2026-05-16T12:00:00Z",
+        readingTime: "1 min read",
+        tags: ["SEO"],
+        sections: [{ heading: "Article", body: "Crawler-visible body." }]
+      }
+    ]).map((route) => route.path);
+
+    expect(routePaths).toContain("/blog/api-seo-post");
+  });
+
   it("builds article JSON-LD with readable content", () => {
     const post = posts[0];
     const jsonLd = blogPostJsonLd(post);

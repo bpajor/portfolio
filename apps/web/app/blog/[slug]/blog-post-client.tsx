@@ -10,10 +10,10 @@ import { PublicPost, formatPublishedDate, markdownSections, readingTime, staticP
 
 const fallbackPosts = staticPosts.map(staticPostToPublicPost);
 
-export function BlogPostClient({ slug }: { slug: string }) {
+export function BlogPostClient({ slug, initialPost }: { slug: string; initialPost?: PublicPost | null }) {
   const fallbackPost = fallbackPosts.find((post) => post.slug === slug) ?? null;
-  const [post, setPost] = useState<PublicPost | null>(fallbackPost);
-  const [isMissing, setMissing] = useState(false);
+  const [post, setPost] = useState<PublicPost | null>(initialPost ?? fallbackPost);
+  const [isMissing, setMissing] = useState(!initialPost && !fallbackPost);
 
   useEffect(() => {
     let ignore = false;
