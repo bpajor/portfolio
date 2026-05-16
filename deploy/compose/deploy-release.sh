@@ -56,6 +56,8 @@ if [ -z "$release_services" ]; then
   exit 1
 fi
 
+restart_existing_services=""
+
 image_revision() {
   docker image inspect "$1" --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}'
 }
@@ -118,6 +120,15 @@ if [ "$DEPLOY_MODE" = "staging" ]; then
       printf '%s=%s\n' "$key" "$value" >> .env
     fi
   done
+
+  case " $release_services " in
+    *" api "*) ;;
+    *) restart_existing_services="${restart_existing_services:+$restart_existing_services }api" ;;
+  esac
+  case " $release_services " in
+    *" mcp "*) ;;
+    *) restart_existing_services="${restart_existing_services:+$restart_existing_services }mcp" ;;
+  esac
 fi
 
 log "Validating $DEPLOY_MODE environment"
@@ -169,5 +180,10 @@ for service in $release_services; do
   docker inspect "$container" --format "$container {{.Image}} revision={{ index .Config.Labels \"org.opencontainers.image.revision\" }}"
   require_revision container "$container" "$(container_revision "$container")"
 done
+
+if [ -n "$restart_existing_services" ]; then
+  log "Recreating existing services for environment-only changes"
+  docker compose --env-file .env -f compose.yml up -d --no-build --force-recreate $restart_existing_services
+fi
 
 docker compose --env-file .env -f compose.yml ps
