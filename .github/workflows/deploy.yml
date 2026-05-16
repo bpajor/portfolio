@@ -99,6 +99,10 @@ jobs:
                   terraform=true
                   verify=true
                   ;;
+                .github/workflows/terraform-apply.yml)
+                  terraform=true
+                  verify=true
+                  ;;
                 .github/workflows/deploy.yml|.github/workflows/pr-ci.yml)
                   deploy=true
                   verify=true
@@ -267,7 +271,8 @@ jobs:
     needs:
       - changes
       - verify
-    if: ${{ always() && (github.event_name == 'workflow_dispatch' || vars.DEPLOY_ENABLED == 'true') && needs.changes.outputs.app_changed == 'true' && needs.verify.result == 'success' }}
+      - terraform-apply
+    if: ${{ always() && (github.event_name == 'workflow_dispatch' || vars.DEPLOY_ENABLED == 'true') && needs.changes.outputs.app_changed == 'true' && needs.verify.result == 'success' && (needs['terraform-apply'].result == 'success' || needs['terraform-apply'].result == 'skipped') }}
     environment:
       name: staging
       url: ${{ vars.BASE_URL }}
@@ -302,6 +307,42 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_DEPLOY_SERVICE_ACCOUNT }}
+
+      - name: Setup Google Cloud CLI
+        uses: google-github-actions/setup-gcloud@v3
+
+      - name: Select staging release transport
+        env:
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+          GCP_VM_ZONE: ${{ vars.GCP_VM_ZONE }}
+          ARTIFACT_REGISTRY_DOCKER_REPOSITORY: ${{ vars.ARTIFACT_REGISTRY_DOCKER_REPOSITORY }}
+        run: |
+          set -euo pipefail
+          region="${GCP_VM_ZONE%-*}"
+          repository="${ARTIFACT_REGISTRY_DOCKER_REPOSITORY:-${region}-docker.pkg.dev/${GCP_PROJECT_ID}/portfolio-images}"
+          host="${repository%%/*}"
+          location="${host%-docker.pkg.dev}"
+          repository_id="${repository##*/}"
+
+          if gcloud artifacts repositories describe "$repository_id" \
+            --project "$GCP_PROJECT_ID" \
+            --location "$location" >/dev/null 2>&1
+          then
+            gcloud auth configure-docker "$host" --quiet
+            echo "RELEASE_TRANSPORT=registry" >> "$GITHUB_ENV"
+            echo "ARTIFACT_REGISTRY_DOCKER_REPOSITORY=$repository" >> "$GITHUB_ENV"
+            echo "Using Artifact Registry release transport: $repository"
+          else
+            echo "::warning::Artifact Registry repository $repository is not ready; falling back to IAP archive transfer."
+            echo "RELEASE_TRANSPORT=archive" >> "$GITHUB_ENV"
+            echo "ARTIFACT_REGISTRY_DOCKER_REPOSITORY=$repository" >> "$GITHUB_ENV"
+          fi
+
       - name: Build staging images
         env:
           NEXT_PUBLIC_SITE_URL: ${{ vars.BASE_URL }}
@@ -313,8 +354,11 @@ jobs:
         run: |
           set -euo pipefail
           archive_images=()
+          release_image_refs=()
 
           for service in $RELEASE_SERVICES; do
+            local_image="${COMPOSE_PROJECT_NAME}-${service}:latest"
+            registry_image="${ARTIFACT_REGISTRY_DOCKER_REPOSITORY}/${COMPOSE_PROJECT_NAME}-${service}:${GITHUB_SHA}"
             case "$service" in
               web)
                 docker build \
@@ -323,21 +367,21 @@ jobs:
                   --build-arg NEXT_PUBLIC_SITE_URL="$NEXT_PUBLIC_SITE_URL" \
                   --build-arg NEXT_PUBLIC_API_BASE_URL="$NEXT_PUBLIC_API_BASE_URL" \
                   --build-arg NEXT_PUBLIC_TURNSTILE_SITE_KEY="$NEXT_PUBLIC_TURNSTILE_SITE_KEY" \
-                  -t "${COMPOSE_PROJECT_NAME}-web:latest" \
+                  -t "$local_image" \
                   .
                 ;;
               api)
                 docker build \
                   -f apps/api/Dockerfile \
                   --label org.opencontainers.image.revision="$GITHUB_SHA" \
-                  -t "${COMPOSE_PROJECT_NAME}-api:latest" \
+                  -t "$local_image" \
                   .
                 ;;
               mcp)
                 docker build \
                   -f apps/mcp/Dockerfile \
                   --label org.opencontainers.image.revision="$GITHUB_SHA" \
-                  -t "${COMPOSE_PROJECT_NAME}-mcp:latest" \
+                  -t "$local_image" \
                   .
                 ;;
               *)
@@ -345,24 +389,26 @@ jobs:
                 exit 1
                 ;;
             esac
-            archive_images+=("${COMPOSE_PROJECT_NAME}-${service}:latest")
+            if [ "$RELEASE_TRANSPORT" = "registry" ]; then
+              docker tag "$local_image" "$registry_image"
+              docker push "$registry_image"
+              release_image_refs+=("${service}=${registry_image}")
+            else
+              archive_images+=("$local_image")
+            fi
           done
 
-          for image in "${archive_images[@]}"; do
+          for service in $RELEASE_SERVICES; do
+            image="${COMPOSE_PROJECT_NAME}-${service}:latest"
             docker image inspect "$image" \
               --format "$image {{.ID}} revision={{ index .Config.Labels \"org.opencontainers.image.revision\" }}"
           done
-          docker save "${archive_images[@]}" | gzip > "$RELEASE_IMAGE_ARCHIVE"
-          ls -lh "$RELEASE_IMAGE_ARCHIVE"
-
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v3
-        with:
-          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-          service_account: ${{ secrets.GCP_DEPLOY_SERVICE_ACCOUNT }}
-
-      - name: Setup Google Cloud CLI
-        uses: google-github-actions/setup-gcloud@v3
+          if [ "$RELEASE_TRANSPORT" = "registry" ]; then
+            echo "RELEASE_IMAGE_REFS=${release_image_refs[*]}" >> "$GITHUB_ENV"
+          else
+            docker save "${archive_images[@]}" | gzip > "$RELEASE_IMAGE_ARCHIVE"
+            ls -lh "$RELEASE_IMAGE_ARCHIVE"
+          fi
 
       - name: Prepare staging OS Login SSH key
         env:
@@ -378,7 +424,7 @@ jobs:
             --key-file ~/.ssh/google_compute_engine.pub \
             --ttl=2h
 
-      - name: Upload staging images through IAP
+      - name: Upload staging deploy script through IAP
         env:
           GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
           GCP_VM_NAME: ${{ vars.GCP_VM_NAME }}
@@ -391,13 +437,17 @@ jobs:
           set -euo pipefail
           test -s "$LOCAL_DEPLOY_SCRIPT"
 
-          gcloud compute scp \
-            --project "$GCP_PROJECT_ID" \
-            --zone "$GCP_VM_ZONE" \
-            --tunnel-through-iap \
-            --quiet \
-            "$LOCAL_RELEASE_IMAGE_ARCHIVE" \
-            "${GCP_VM_NAME}:${REMOTE_RELEASE_IMAGE_ARCHIVE}"
+          if [ "$RELEASE_TRANSPORT" = "archive" ]; then
+            gcloud compute scp \
+              --project "$GCP_PROJECT_ID" \
+              --zone "$GCP_VM_ZONE" \
+              --tunnel-through-iap \
+              --quiet \
+              "$LOCAL_RELEASE_IMAGE_ARCHIVE" \
+              "${GCP_VM_NAME}:${REMOTE_RELEASE_IMAGE_ARCHIVE}"
+          else
+            echo "Using Artifact Registry image pull; skipping release archive upload."
+          fi
 
           gcloud compute scp \
             --project "$GCP_PROJECT_ID" \
@@ -418,12 +468,26 @@ jobs:
           RELEASE_SERVICES: ${{ needs.changes.outputs.release_services }}
         run: |
           set -euo pipefail
+          remote_env=(
+            "APP_DIR=$APP_DIR"
+            "RELEASE_IMAGE_ARCHIVE="
+            "RELEASE_IMAGE_REFS=$RELEASE_IMAGE_REFS"
+            "DEPLOY_MODE=staging"
+            "RUN_BACKUP=false"
+            "EXPECTED_IMAGE_REVISION=$GITHUB_SHA"
+            "RELEASE_SERVICES=$RELEASE_SERVICES"
+          )
+          if [ "$RELEASE_TRANSPORT" = "archive" ]; then
+            remote_env[1]="RELEASE_IMAGE_ARCHIVE=$REMOTE_RELEASE_IMAGE_ARCHIVE"
+            remote_env[2]="RELEASE_IMAGE_REFS="
+          fi
+          printf -v remote_command '%q ' "${remote_env[@]}" bash "$REMOTE_DEPLOY_SCRIPT"
           gcloud compute ssh "$GCP_VM_NAME" \
             --project "$GCP_PROJECT_ID" \
             --zone "$GCP_VM_ZONE" \
             --tunnel-through-iap \
             --quiet \
-            --command "APP_DIR='$APP_DIR' RELEASE_IMAGE_ARCHIVE='$REMOTE_RELEASE_IMAGE_ARCHIVE' DEPLOY_MODE='staging' RUN_BACKUP='false' EXPECTED_IMAGE_REVISION='$GITHUB_SHA' RELEASE_SERVICES='$RELEASE_SERVICES' bash '$REMOTE_DEPLOY_SCRIPT'"
+            --command "$remote_command"
 
       - name: Open staging IAP tunnel
         env:
@@ -511,14 +575,23 @@ jobs:
     uses: ./.github/workflows/terraform-plan.yml
     secrets: inherit
 
+  terraform-apply:
+    name: Terraform apply before deployment
+    needs:
+      - changes
+      - terraform-plan
+    if: ${{ always() && (github.event_name == 'workflow_dispatch' || vars.DEPLOY_ENABLED == 'true') && needs.changes.outputs.terraform_changed == 'true' && needs['terraform-plan'].result == 'success' }}
+    uses: ./.github/workflows/terraform-apply.yml
+    secrets: inherit
+
   deploy-production:
     name: Deploy production
     runs-on: ubuntu-latest
     needs:
       - changes
       - deploy-staging
-      - terraform-plan
-    if: ${{ always() && (github.event_name == 'workflow_dispatch' || vars.DEPLOY_ENABLED == 'true') && needs.changes.outputs.app_changed == 'true' && needs['deploy-staging'].result == 'success' && (needs['terraform-plan'].result == 'success' || needs['terraform-plan'].result == 'skipped') }}
+      - terraform-apply
+    if: ${{ always() && (github.event_name == 'workflow_dispatch' || vars.DEPLOY_ENABLED == 'true') && needs.changes.outputs.app_changed == 'true' && needs['deploy-staging'].result == 'success' && (needs['terraform-apply'].result == 'success' || needs['terraform-apply'].result == 'skipped') }}
     environment:
       name: production
       url: ${{ vars.BASE_URL }}
@@ -557,6 +630,42 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_DEPLOY_SERVICE_ACCOUNT }}
+
+      - name: Setup Google Cloud CLI
+        uses: google-github-actions/setup-gcloud@v3
+
+      - name: Select production release transport
+        env:
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+          GCP_VM_ZONE: ${{ vars.GCP_VM_ZONE }}
+          ARTIFACT_REGISTRY_DOCKER_REPOSITORY: ${{ vars.ARTIFACT_REGISTRY_DOCKER_REPOSITORY }}
+        run: |
+          set -euo pipefail
+          region="${GCP_VM_ZONE%-*}"
+          repository="${ARTIFACT_REGISTRY_DOCKER_REPOSITORY:-${region}-docker.pkg.dev/${GCP_PROJECT_ID}/portfolio-images}"
+          host="${repository%%/*}"
+          location="${host%-docker.pkg.dev}"
+          repository_id="${repository##*/}"
+
+          if gcloud artifacts repositories describe "$repository_id" \
+            --project "$GCP_PROJECT_ID" \
+            --location "$location" >/dev/null 2>&1
+          then
+            gcloud auth configure-docker "$host" --quiet
+            echo "RELEASE_TRANSPORT=registry" >> "$GITHUB_ENV"
+            echo "ARTIFACT_REGISTRY_DOCKER_REPOSITORY=$repository" >> "$GITHUB_ENV"
+            echo "Using Artifact Registry release transport: $repository"
+          else
+            echo "::warning::Artifact Registry repository $repository is not ready; falling back to IAP archive transfer."
+            echo "RELEASE_TRANSPORT=archive" >> "$GITHUB_ENV"
+            echo "ARTIFACT_REGISTRY_DOCKER_REPOSITORY=$repository" >> "$GITHUB_ENV"
+          fi
+
       - name: Build production images
         env:
           NEXT_PUBLIC_SITE_URL: ${{ vars.BASE_URL }}
@@ -568,8 +677,11 @@ jobs:
         run: |
           set -euo pipefail
           archive_images=()
+          release_image_refs=()
 
           for service in $RELEASE_SERVICES; do
+            local_image="${COMPOSE_PROJECT_NAME}-${service}:latest"
+            registry_image="${ARTIFACT_REGISTRY_DOCKER_REPOSITORY}/${COMPOSE_PROJECT_NAME}-${service}:${GITHUB_SHA}"
             case "$service" in
               web)
                 docker build \
@@ -578,21 +690,21 @@ jobs:
                   --build-arg NEXT_PUBLIC_SITE_URL="$NEXT_PUBLIC_SITE_URL" \
                   --build-arg NEXT_PUBLIC_API_BASE_URL="$NEXT_PUBLIC_API_BASE_URL" \
                   --build-arg NEXT_PUBLIC_TURNSTILE_SITE_KEY="$NEXT_PUBLIC_TURNSTILE_SITE_KEY" \
-                  -t "${COMPOSE_PROJECT_NAME}-web:latest" \
+                  -t "$local_image" \
                   .
                 ;;
               api)
                 docker build \
                   -f apps/api/Dockerfile \
                   --label org.opencontainers.image.revision="$GITHUB_SHA" \
-                  -t "${COMPOSE_PROJECT_NAME}-api:latest" \
+                  -t "$local_image" \
                   .
                 ;;
               mcp)
                 docker build \
                   -f apps/mcp/Dockerfile \
                   --label org.opencontainers.image.revision="$GITHUB_SHA" \
-                  -t "${COMPOSE_PROJECT_NAME}-mcp:latest" \
+                  -t "$local_image" \
                   .
                 ;;
               *)
@@ -600,24 +712,26 @@ jobs:
                 exit 1
                 ;;
             esac
-            archive_images+=("${COMPOSE_PROJECT_NAME}-${service}:latest")
+            if [ "$RELEASE_TRANSPORT" = "registry" ]; then
+              docker tag "$local_image" "$registry_image"
+              docker push "$registry_image"
+              release_image_refs+=("${service}=${registry_image}")
+            else
+              archive_images+=("$local_image")
+            fi
           done
 
-          for image in "${archive_images[@]}"; do
+          for service in $RELEASE_SERVICES; do
+            image="${COMPOSE_PROJECT_NAME}-${service}:latest"
             docker image inspect "$image" \
               --format "$image {{.ID}} revision={{ index .Config.Labels \"org.opencontainers.image.revision\" }}"
           done
-          docker save "${archive_images[@]}" | gzip > "$RELEASE_IMAGE_ARCHIVE"
-          ls -lh "$RELEASE_IMAGE_ARCHIVE"
-
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v3
-        with:
-          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-          service_account: ${{ secrets.GCP_DEPLOY_SERVICE_ACCOUNT }}
-
-      - name: Setup Google Cloud CLI
-        uses: google-github-actions/setup-gcloud@v3
+          if [ "$RELEASE_TRANSPORT" = "registry" ]; then
+            echo "RELEASE_IMAGE_REFS=${release_image_refs[*]}" >> "$GITHUB_ENV"
+          else
+            docker save "${archive_images[@]}" | gzip > "$RELEASE_IMAGE_ARCHIVE"
+            ls -lh "$RELEASE_IMAGE_ARCHIVE"
+          fi
 
       - name: Prepare production OS Login SSH key
         env:
@@ -633,7 +747,7 @@ jobs:
             --key-file ~/.ssh/google_compute_engine.pub \
             --ttl=2h
 
-      - name: Upload production images through IAP
+      - name: Upload production deploy script through IAP
         env:
           GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
           GCP_VM_NAME: ${{ vars.GCP_VM_NAME }}
@@ -646,13 +760,17 @@ jobs:
           set -euo pipefail
           test -s "$LOCAL_DEPLOY_SCRIPT"
 
-          gcloud compute scp \
-            --project "$GCP_PROJECT_ID" \
-            --zone "$GCP_VM_ZONE" \
-            --tunnel-through-iap \
-            --quiet \
-            "$LOCAL_RELEASE_IMAGE_ARCHIVE" \
-            "${GCP_VM_NAME}:${REMOTE_RELEASE_IMAGE_ARCHIVE}"
+          if [ "$RELEASE_TRANSPORT" = "archive" ]; then
+            gcloud compute scp \
+              --project "$GCP_PROJECT_ID" \
+              --zone "$GCP_VM_ZONE" \
+              --tunnel-through-iap \
+              --quiet \
+              "$LOCAL_RELEASE_IMAGE_ARCHIVE" \
+              "${GCP_VM_NAME}:${REMOTE_RELEASE_IMAGE_ARCHIVE}"
+          else
+            echo "Using Artifact Registry image pull; skipping release archive upload."
+          fi
 
           gcloud compute scp \
             --project "$GCP_PROJECT_ID" \
@@ -677,7 +795,8 @@ jobs:
           set -euo pipefail
           remote_env=(
             "APP_DIR=$APP_DIR"
-            "RELEASE_IMAGE_ARCHIVE=$REMOTE_RELEASE_IMAGE_ARCHIVE"
+            "RELEASE_IMAGE_ARCHIVE="
+            "RELEASE_IMAGE_REFS=$RELEASE_IMAGE_REFS"
             "DEPLOY_MODE=production"
             "RUN_BACKUP=true"
             "EXPECTED_IMAGE_REVISION=$GITHUB_SHA"
@@ -685,6 +804,10 @@ jobs:
             "NEXT_PUBLIC_TURNSTILE_SITE_KEY=$NEXT_PUBLIC_TURNSTILE_SITE_KEY"
             "TURNSTILE_SECRET_KEY=$TURNSTILE_SECRET_KEY"
           )
+          if [ "$RELEASE_TRANSPORT" = "archive" ]; then
+            remote_env[1]="RELEASE_IMAGE_ARCHIVE=$REMOTE_RELEASE_IMAGE_ARCHIVE"
+            remote_env[2]="RELEASE_IMAGE_REFS="
+          fi
           printf -v remote_command '%q ' "${remote_env[@]}" bash "$REMOTE_DEPLOY_SCRIPT"
           gcloud compute ssh "$GCP_VM_NAME" \
             --project "$GCP_PROJECT_ID" \

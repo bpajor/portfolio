@@ -13,6 +13,7 @@ locals {
 
 resource "google_project_service" "required" {
   for_each = toset([
+    "artifactregistry.googleapis.com",
     "compute.googleapis.com",
     "iap.googleapis.com",
     "storage.googleapis.com",
@@ -184,6 +185,72 @@ resource "google_storage_bucket_iam_member" "vm_backup_writer" {
   member = "serviceAccount:${google_service_account.vm.email}"
 }
 
+resource "google_artifact_registry_repository" "images" {
+  location               = var.region
+  repository_id          = "${var.name_prefix}-images"
+  description            = "Docker images for portfolio deployments."
+  format                 = "DOCKER"
+  labels                 = var.labels
+  cleanup_policy_dry_run = false
+
+  cleanup_policies {
+    id     = "keep-last-five-versions"
+    action = "KEEP"
+
+    most_recent_versions {
+      package_name_prefixes = [
+        "portfolio-staging-web",
+        "portfolio-staging-api",
+        "portfolio-staging-mcp",
+        "portfolio-production-web",
+        "portfolio-production-api",
+        "portfolio-production-mcp",
+      ]
+      keep_count = 5
+    }
+  }
+
+  cleanup_policies {
+    id     = "delete-older-tagged-versions"
+    action = "DELETE"
+
+    condition {
+      tag_state  = "TAGGED"
+      older_than = "86400s"
+    }
+  }
+
+  cleanup_policies {
+    id     = "delete-untagged"
+    action = "DELETE"
+
+    condition {
+      tag_state  = "UNTAGGED"
+      older_than = "86400s"
+    }
+  }
+
+  depends_on = [google_project_service.required]
+}
+
+resource "google_artifact_registry_repository_iam_member" "vm_image_reader" {
+  project    = var.project_id
+  location   = google_artifact_registry_repository.images.location
+  repository = google_artifact_registry_repository.images.name
+  role       = "roles/artifactregistry.reader"
+  member     = "serviceAccount:${google_service_account.vm.email}"
+}
+
+resource "google_artifact_registry_repository_iam_member" "github_deploy_image_writer" {
+  count = var.enable_github_iap_deploy ? 1 : 0
+
+  project    = var.project_id
+  location   = google_artifact_registry_repository.images.location
+  repository = google_artifact_registry_repository.images.name
+  role       = "roles/artifactregistry.writer"
+  member     = "serviceAccount:${google_service_account.github_deploy[0].email}"
+}
+
 resource "google_compute_instance" "web" {
   name         = local.vm_name
   machine_type = var.machine_type
@@ -236,6 +303,7 @@ resource "google_compute_instance" "web" {
     google_compute_firewall.allow_web,
     google_compute_firewall.allow_ssh_iap,
     google_compute_project_metadata_item.os_login,
+    google_artifact_registry_repository_iam_member.vm_image_reader,
     google_storage_bucket_iam_member.vm_backup_writer,
   ]
 }

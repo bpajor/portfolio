@@ -2,14 +2,20 @@
 set -euo pipefail
 
 : "${APP_DIR:?APP_DIR is required}"
-: "${RELEASE_IMAGE_ARCHIVE:?RELEASE_IMAGE_ARCHIVE is required}"
+: "${RELEASE_IMAGE_ARCHIVE:=}"
+: "${RELEASE_IMAGE_REFS:=}"
 : "${DEPLOY_MODE:?DEPLOY_MODE is required}"
 : "${RUN_BACKUP:?RUN_BACKUP is required}"
 : "${EXPECTED_IMAGE_REVISION:?EXPECTED_IMAGE_REVISION is required}"
 : "${RELEASE_SERVICES:=web api mcp}"
 
+if [ -z "$RELEASE_IMAGE_ARCHIVE" ] && [ -z "$RELEASE_IMAGE_REFS" ]; then
+  echo "ERROR: RELEASE_IMAGE_ARCHIVE or RELEASE_IMAGE_REFS is required" >&2
+  exit 1
+fi
+
 cleanup() {
-  if [ "${PORTFOLIO_DEPLOY_AS_USER:-}" != "1" ]; then
+  if [ "${PORTFOLIO_DEPLOY_AS_USER:-}" != "1" ] && [ -n "$RELEASE_IMAGE_ARCHIVE" ]; then
     rm -f "$RELEASE_IMAGE_ARCHIVE" || true
   fi
   case "$0" in
@@ -23,10 +29,13 @@ log() {
 }
 
 if [ "${PORTFOLIO_DEPLOY_AS_USER:-}" != "1" ]; then
-  chmod 0644 "$RELEASE_IMAGE_ARCHIVE"
+  if [ -n "$RELEASE_IMAGE_ARCHIVE" ]; then
+    chmod 0644 "$RELEASE_IMAGE_ARCHIVE"
+  fi
   exec sudo -u portfolio env \
     APP_DIR="$APP_DIR" \
     RELEASE_IMAGE_ARCHIVE="$RELEASE_IMAGE_ARCHIVE" \
+    RELEASE_IMAGE_REFS="$RELEASE_IMAGE_REFS" \
     DEPLOY_MODE="$DEPLOY_MODE" \
     RUN_BACKUP="$RUN_BACKUP" \
     EXPECTED_IMAGE_REVISION="$EXPECTED_IMAGE_REVISION" \
@@ -59,6 +68,10 @@ if [ -z "$release_services" ]; then
 fi
 
 restart_existing_services=""
+release_transport="archive"
+if [ -n "$RELEASE_IMAGE_REFS" ]; then
+  release_transport="registry"
+fi
 
 image_revision() {
   docker image inspect "$1" --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}'
@@ -101,6 +114,37 @@ set_env_value() {
   ' .env >"$tmp_file"
   cat "$tmp_file" >.env
   rm -f "$tmp_file"
+}
+
+image_ref_for_service() {
+  service="$1"
+  for entry in $RELEASE_IMAGE_REFS; do
+    case "$entry" in
+      "$service="*) printf '%s\n' "${entry#*=}"; return 0 ;;
+    esac
+  done
+  return 1
+}
+
+artifact_registry_host() {
+  for entry in $RELEASE_IMAGE_REFS; do
+    ref="${entry#*=}"
+    printf '%s\n' "${ref%%/*}"
+    return 0
+  done
+  return 1
+}
+
+docker_login_artifact_registry() {
+  host="$1"
+  log "Authenticating Docker to $host with the VM service account"
+  token="$(
+    curl -fsS \
+      -H "Metadata-Flavor: Google" \
+      "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token" |
+      python3 -c 'import json, sys; print(json.load(sys.stdin)["access_token"])'
+  )"
+  printf '%s' "$token" | docker login -u oauth2accesstoken --password-stdin "https://$host" >/dev/null
 }
 
 cd "$APP_DIR"
@@ -171,13 +215,7 @@ if [ -z "$compose_project" ]; then
   exit 1
 fi
 
-log "Release archive"
-ls -lh "$RELEASE_IMAGE_ARCHIVE"
-if command -v sha256sum >/dev/null 2>&1; then
-  sha256sum "$RELEASE_IMAGE_ARCHIVE"
-fi
-
-log "Images before docker load"
+log "Images before release update"
 for service in $release_services; do
   image="${compose_project}-${service}:latest"
   if docker image inspect "$image" >/dev/null 2>&1; then
@@ -187,15 +225,46 @@ for service in $release_services; do
   fi
 done
 
-log "Loading release images"
-docker load -i "$RELEASE_IMAGE_ARCHIVE"
+case "$release_transport" in
+  archive)
+    log "Release archive"
+    ls -lh "$RELEASE_IMAGE_ARCHIVE"
+    if command -v sha256sum >/dev/null 2>&1; then
+      sha256sum "$RELEASE_IMAGE_ARCHIVE"
+    fi
 
-log "Images after docker load"
-for service in $release_services; do
-  image="${compose_project}-${service}:latest"
-  docker image inspect "$image" --format "$image {{.ID}} revision={{ index .Config.Labels \"org.opencontainers.image.revision\" }}"
-  require_revision image "$image" "$(image_revision "$image")"
-done
+    log "Loading release images"
+    docker load -i "$RELEASE_IMAGE_ARCHIVE"
+
+    log "Images after docker load"
+    for service in $release_services; do
+      image="${compose_project}-${service}:latest"
+      docker image inspect "$image" --format "$image {{.ID}} revision={{ index .Config.Labels \"org.opencontainers.image.revision\" }}"
+      require_revision image "$image" "$(image_revision "$image")"
+    done
+    ;;
+  registry)
+    log "Release image refs"
+    printf '%s\n' "$RELEASE_IMAGE_REFS"
+    docker_login_artifact_registry "$(artifact_registry_host)"
+
+    log "Pulling release images from Artifact Registry"
+    for service in $release_services; do
+      image_ref="$(image_ref_for_service "$service")"
+      image="${compose_project}-${service}:latest"
+      docker pull "$image_ref"
+      docker image inspect "$image_ref" --format "$image_ref {{.ID}} revision={{ index .Config.Labels \"org.opencontainers.image.revision\" }}"
+      require_revision image "$image_ref" "$(image_revision "$image_ref")"
+      docker tag "$image_ref" "$image"
+      docker image inspect "$image" --format "$image {{.ID}} revision={{ index .Config.Labels \"org.opencontainers.image.revision\" }}"
+      require_revision image "$image" "$(image_revision "$image")"
+    done
+    ;;
+  *)
+    echo "ERROR: unsupported release transport '$release_transport'" >&2
+    exit 1
+    ;;
+esac
 
 log "Recreating application services"
 docker compose --env-file .env -f compose.yml up -d --no-build --force-recreate $release_services
