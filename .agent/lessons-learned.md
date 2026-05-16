@@ -48,6 +48,28 @@ Working rule:
 
 - Every new Terraform resource family must include an IAM impact check for the Terraform service account, especially `google_project_service`, IAM resources, Artifact Registry, DNS, billing, and service accounts.
 
+## 2026-05-16 - Terraform apply also needed firewall update permissions
+
+What happened:
+
+- After adding Artifact Registry permissions, Terraform apply successfully enabled `artifactregistry.googleapis.com`, created the repository, and added image reader/writer IAM.
+- The same apply then failed while updating `portfolio-allow-ssh-admin` because the Terraform service account lacked `compute.firewalls.update` and `compute.networks.updatePolicy`.
+
+Why it happened:
+
+- I scoped the IAM fix to the newly added Artifact Registry resources, but the plan also included a change to an existing Compute firewall rule.
+- I did not treat "all resources in the current plan" as the permission boundary for the Terraform service account.
+
+What I should have done:
+
+- Read the full Terraform plan and list every resource action, including unrelated drift or variable-driven updates.
+- Check required permissions for each action before asking the user to rerun apply.
+- Prefer a role like `roles/compute.securityAdmin` for Terraform when it owns firewall rules, or avoid managing those rules through Terraform if that is not intended.
+
+Working rule:
+
+- Before Terraform apply, verify the service account can perform every planned action, not only the resources introduced by the current PR.
+
 ## 2026-05-16 - Artifact Registry deploy needed Terraform apply in CI
 
 What happened:
