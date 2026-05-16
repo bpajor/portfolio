@@ -18,6 +18,16 @@ output "backup_bucket" {
   value       = google_storage_bucket.backups.url
 }
 
+output "artifact_registry_repository" {
+  description = "Artifact Registry Docker repository for release images."
+  value       = google_artifact_registry_repository.images.name
+}
+
+output "artifact_registry_docker_repository" {
+  description = "Docker repository URL for release images."
+  value       = "${var.region}-docker.pkg.dev/${var.project_id}/${google_artifact_registry_repository.images.repository_id}"
+}
+
 output "vm_service_account" {
   description = "Service account attached to the VM."
   value       = google_service_account.vm.email

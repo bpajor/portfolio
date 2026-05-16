@@ -121,7 +121,7 @@ jobs:
                 deploy/compose/*|.dockerignore)
                   deploy=true
                   ;;
-                infra/gcp/*|.github/workflows/terraform-plan.yml)
+                infra/gcp/*|.github/workflows/terraform-plan.yml|.github/workflows/terraform-apply.yml)
                   terraform=true
                   ;;
                 .github/workflows/deploy.yml|.github/workflows/pr-ci.yml)
