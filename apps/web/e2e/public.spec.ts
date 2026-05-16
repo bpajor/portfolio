@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
 
+const runsAgainstDeployedApp = Boolean(process.env.E2E_BASE_URL);
+
 test.describe("public website", () => {
   test("renders core public routes", async ({ page }) => {
     const blogPost = {
@@ -133,6 +135,11 @@ test.describe("public website", () => {
   });
 
   test("does not flash static placeholder posts while API posts load", async ({ page }) => {
+    test.skip(
+      runsAgainstDeployedApp,
+      "This regression blocks browser-side API fetches; deployed SSR fetches happen before Playwright route mocks can intercept them."
+    );
+
     const post = {
       id: "post-loading",
       slug: "api-loaded-writing",
