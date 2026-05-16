@@ -184,6 +184,33 @@
         "Cleanup verification step.",
         "Failure artifact upload with traces and screenshots."
       ]
+    },
+    {
+      "id": "artifact-registry-image-deploy",
+      "title": "Deploy container images through Artifact Registry",
+      "priority": "medium",
+      "goal": "Replace slow and fragile IAP/SCP image archive transfers with registry-backed image delivery.",
+      "scope": [
+        "Create or configure a Google Artifact Registry Docker repository.",
+        "Build web, API, and MCP images with immutable tags based on the Git commit SHA.",
+        "Push release images from GitHub Actions to Artifact Registry.",
+        "Update VM deploy flow to pull the requested image tags instead of copying a compressed docker save archive over IAP/SFTP.",
+        "Keep IAP SSH for executing the remote deploy script, but remove large image transfer from the SSH tunnel.",
+        "Add rollback documentation using previously published image tags."
+      ],
+      "acceptanceCriteria": [
+        "Deploy workflows no longer transfer large docker image archives over gcloud compute scp.",
+        "VM pulls images from Artifact Registry using the VM service account.",
+        "Each deployed container image has an immutable commit SHA tag and revision label.",
+        "Deploy logs show image tags and digests used for each service.",
+        "A failed deploy can be retried without rebuilding images when the tags already exist."
+      ],
+      "tests": [
+        "Workflow dry run or staging deploy proving images are pushed and pulled from Artifact Registry.",
+        "IAM validation for GitHub push permissions and VM pull permissions.",
+        "Deployment script validation for image tag inputs.",
+        "Staging rollback test using a previous image tag."
+      ]
     }
   ]
 }
