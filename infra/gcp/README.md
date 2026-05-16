@@ -71,7 +71,7 @@ terraform init \
 
 Do not use the application backup bucket as the Terraform state bucket. Keep infrastructure state separate from database backups.
 
-The manual `Terraform Plan` workflow in GitHub Actions authenticates with GCP through Workload Identity Federation, runs `terraform plan`, prints the plan in the job log, writes it to the run summary, and uploads the full plan as an artifact. It intentionally does not run `terraform apply`.
+The Terraform workflows in GitHub Actions authenticate with GCP through Workload Identity Federation. `Terraform Plan` prints the plan in the job log, writes it to the run summary, and uploads the full plan as an artifact. `Terraform Apply` is used by deployment workflows after protected environment approval.
 
 Required GitHub `terraform` environment variables:
 
@@ -86,6 +86,11 @@ Required GitHub `terraform` environment secrets:
 
 - `GCP_WORKLOAD_IDENTITY_PROVIDER`
 - `GCP_TERRAFORM_SERVICE_ACCOUNT`
+
+The Terraform service account must have the project-scoped roles needed by the managed resources. When Terraform manages API enablement and Artifact Registry, include:
+
+- `roles/serviceusage.serviceUsageAdmin`
+- `roles/artifactregistry.admin`
 
 After apply, use the `static_ip` output to create Cloudflare DNS records. Then bootstrap the VM with `deploy/vm/bootstrap-debian.sh`; the full flow is documented in `docs/gcp-dns-deployment.md`.
 
