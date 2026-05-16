@@ -3,6 +3,7 @@
     {
       "id": "ci-context-aware-workflows",
       "title": "Run CI jobs only for relevant change contexts",
+      "status": "completed",
       "priority": "high",
       "goal": "Reduce PR and deploy feedback time by skipping unrelated jobs.",
       "scope": [
@@ -28,6 +29,7 @@
     {
       "id": "blog-ssr-api-seo",
       "title": "Render API-published blog posts in SEO-visible server paths",
+      "status": "pending",
       "priority": "high",
       "goal": "Make admin-published posts visible to users, Google, crawlers, RSS, sitemap, and LLM assets.",
       "scope": [
@@ -55,6 +57,7 @@
     {
       "id": "public-comment-submission",
       "title": "Enable public comment submission with Turnstile protection",
+      "status": "completed",
       "priority": "medium",
       "goal": "Allow readers to submit comments safely while keeping moderation mandatory.",
       "scope": [
@@ -82,6 +85,7 @@
     {
       "id": "admin-auth-ops",
       "title": "Improve admin account operations",
+      "status": "pending",
       "priority": "medium",
       "goal": "Make admin access manageable without manual database edits.",
       "scope": [
@@ -109,6 +113,7 @@
     {
       "id": "admin-media-crud",
       "title": "Implement admin media library",
+      "status": "pending",
       "priority": "medium",
       "goal": "Allow images and assets to be uploaded and reused in posts or projects.",
       "scope": [
@@ -136,6 +141,7 @@
     {
       "id": "admin-projects-crud",
       "title": "Implement admin projects CRUD",
+      "status": "pending",
       "priority": "medium",
       "goal": "Manage portfolio projects from admin instead of static site data.",
       "scope": [
@@ -161,6 +167,7 @@
     {
       "id": "staging-real-admin-e2e",
       "title": "Run real staging admin E2E after deploy",
+      "status": "partial",
       "priority": "high",
       "goal": "Verify deployed staging with the real API, database, Caddy, cookies, and IAP tunnel.",
       "scope": [
@@ -188,6 +195,7 @@
     {
       "id": "artifact-registry-image-deploy",
       "title": "Deploy container images through Artifact Registry",
+      "status": "completed",
       "priority": "medium",
       "goal": "Replace slow and fragile IAP/SCP image archive transfers with registry-backed image delivery.",
       "scope": [

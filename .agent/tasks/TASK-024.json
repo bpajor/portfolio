@@ -1,7 +1,7 @@
 {
   "id": "024",
   "title": "Move release image builds off the e2-micro VM",
-  "status": "pending",
+  "status": "completed",
   "goal": "Stop building production Docker images on the low-cost e2-micro VM and make deployments run prebuilt images instead.",
   "context": [
     "During the first manual GCP release, docker compose up --build on the e2-micro VM stalled the machine while building the web, API, and MCP images.",
@@ -20,5 +20,11 @@
     "The VM remains reachable over SSH during staging and production deploys.",
     "Smoke checks pass after running the stack from prebuilt images.",
     "Rollback can redeploy a previous image tag without rebuilding on the VM."
+  ],
+  "notes": [
+    "GitHub Actions now builds release images away from the VM.",
+    "Artifact Registry is used when the repository exists, with the previous image archive path retained as a fallback.",
+    "The VM pulls immutable commit-SHA image tags using the VM service account and retags them to the local Compose project tags.",
+    "Registry-backed deployment was verified through staging and production."
   ]
 }

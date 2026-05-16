@@ -6,6 +6,8 @@ The machine-readable backlog lives in [`follow-up-tasks.json`](./follow-up-tasks
 
 ## 1. Optimize Deploy Builds by Changed Surface
 
+Status: Completed. CI and deploy workflows now classify changed paths and skip unrelated jobs/deploys, while keeping recovery deploys possible when earlier application commits still need deployment.
+
 Problem:
 
 - The deploy workflow currently builds web, API, and MCP images for every deployment.
@@ -32,6 +34,8 @@ Acceptance criteria:
 - Staging and production deploys remain reproducible and rollback-friendly.
 
 ## 2. Improve Discoverability for "Blazej Pajor" / "Błażej Pajor"
+
+Status: Pending.
 
 Problem:
 
@@ -61,6 +65,8 @@ Acceptance criteria:
 - GEO assets remain aligned with real page content and do not rely on hidden text or misleading keyword stuffing.
 
 ## 3. Expand Automated Test Coverage, Especially Playwright E2E
+
+Status: In progress. Public comments, admin post CRUD, admin comment moderation, deployed staging admin checks, CSRF regression coverage, and placeholder-flash coverage have been added. Broader auth ops, media, projects, and full real staging admin flows remain open.
 
 Problem:
 
@@ -92,6 +98,8 @@ Acceptance criteria:
 - The suite remains fast enough to be useful and documents any intentionally slow tests.
 
 ## 4. Deploy Images Through Artifact Registry
+
+Status: Completed. Staging and production deploys now use Artifact Registry image refs when the repository exists, with the previous IAP/SCP archive path retained as a fallback.
 
 Problem:
 
