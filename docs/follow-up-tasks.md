@@ -90,3 +90,34 @@ Acceptance criteria:
 - Backend tests cover critical API/MCP behavior and failure cases.
 - Deploy and backup scripts have regression checks for the mistakes already seen during release.
 - The suite remains fast enough to be useful and documents any intentionally slow tests.
+
+## 4. Deploy Images Through Artifact Registry
+
+Problem:
+
+- The deploy workflow currently transfers a compressed `docker save` archive to the VM over IAP/SFTP.
+- The archive is around 80 MB today and can take several minutes when IAP throughput is poor.
+- Slow or opaque transfers make deploys feel stuck and can block staging feedback.
+
+Goal:
+
+- Push built images to Google Artifact Registry from GitHub Actions.
+- Let the VM pull immutable image tags during deploy instead of receiving a large tarball over SSH.
+- Keep IAP for remote command execution, but remove large binary transfers from the SSH tunnel.
+
+Suggested approach:
+
+- Create or configure an Artifact Registry Docker repository.
+- Tag web, API, and MCP images with the Git commit SHA and keep revision labels.
+- Grant GitHub Actions permission to push images.
+- Grant the VM service account permission to pull images.
+- Update deploy scripts to pull requested tags and recreate only changed services.
+- Document rollback using previously published tags.
+
+Acceptance criteria:
+
+- Deploy workflows no longer use `gcloud compute scp` for large image archives.
+- VM pulls images directly from Artifact Registry.
+- Deploy logs show image tags and digests for each service.
+- Retrying a failed deploy does not require rebuilding images if tags already exist.
+- Rollback to a previous image tag is documented and tested on staging.

@@ -31,6 +31,8 @@ if [ "${PORTFOLIO_DEPLOY_AS_USER:-}" != "1" ]; then
     RUN_BACKUP="$RUN_BACKUP" \
     EXPECTED_IMAGE_REVISION="$EXPECTED_IMAGE_REVISION" \
     RELEASE_SERVICES="$RELEASE_SERVICES" \
+    NEXT_PUBLIC_TURNSTILE_SITE_KEY="${NEXT_PUBLIC_TURNSTILE_SITE_KEY:-}" \
+    TURNSTILE_SECRET_KEY="${TURNSTILE_SECRET_KEY:-}" \
     PORTFOLIO_DEPLOY_AS_USER=1 \
     bash "$0"
 fi
@@ -78,6 +80,29 @@ require_revision() {
   fi
 }
 
+set_env_value() {
+  key="$1"
+  value="$2"
+  tmp_file="$(mktemp)"
+
+  awk -v key="$key" -v value="$value" '
+    BEGIN { replaced = 0 }
+    index($0, key "=") == 1 {
+      print key "=" value
+      replaced = 1
+      next
+    }
+    { print }
+    END {
+      if (replaced == 0) {
+        print key "=" value
+      }
+    }
+  ' .env >"$tmp_file"
+  cat "$tmp_file" >.env
+  rm -f "$tmp_file"
+}
+
 cd "$APP_DIR"
 log "Updating repository checkout"
 git fetch origin main
@@ -98,28 +123,14 @@ if [ "$DEPLOY_MODE" = "staging" ]; then
         else
           next="https://*.cloudshell.dev"
         fi
-        if grep -qE "^${key}=" .env; then
-          sed -i "s|^${key}=.*|${key}=${next}|" .env
-        else
-          printf '%s=%s\n' "$key" "$next" >> .env
-        fi
+        set_env_value "$key" "$next"
         ;;
     esac
   done
 
   log "Ensuring staging Turnstile test keys are configured"
-  for entry in \
-    NEXT_PUBLIC_TURNSTILE_SITE_KEY=1x00000000000000000000AA \
-    TURNSTILE_SECRET_KEY=1x0000000000000000000000000000000AA
-  do
-    key="${entry%%=*}"
-    value="${entry#*=}"
-    if grep -qE "^${key}=" .env; then
-      sed -i "s|^${key}=.*|${key}=${value}|" .env
-    else
-      printf '%s=%s\n' "$key" "$value" >> .env
-    fi
-  done
+  set_env_value "NEXT_PUBLIC_TURNSTILE_SITE_KEY" "1x00000000000000000000AA"
+  set_env_value "TURNSTILE_SECRET_KEY" "1x0000000000000000000000000000000AA"
 
   case " $release_services " in
     *" api "*) ;;
@@ -128,6 +139,21 @@ if [ "$DEPLOY_MODE" = "staging" ]; then
   case " $release_services " in
     *" mcp "*) ;;
     *) restart_existing_services="${restart_existing_services:+$restart_existing_services }mcp" ;;
+  esac
+fi
+
+if [ "$DEPLOY_MODE" = "production" ] &&
+  { [ -n "${NEXT_PUBLIC_TURNSTILE_SITE_KEY:-}" ] || [ -n "${TURNSTILE_SECRET_KEY:-}" ]; }; then
+  : "${NEXT_PUBLIC_TURNSTILE_SITE_KEY:?NEXT_PUBLIC_TURNSTILE_SITE_KEY is required when syncing production Turnstile env}"
+  : "${TURNSTILE_SECRET_KEY:?TURNSTILE_SECRET_KEY is required when syncing production Turnstile env}"
+
+  log "Syncing production Turnstile environment"
+  set_env_value "NEXT_PUBLIC_TURNSTILE_SITE_KEY" "$NEXT_PUBLIC_TURNSTILE_SITE_KEY"
+  set_env_value "TURNSTILE_SECRET_KEY" "$TURNSTILE_SECRET_KEY"
+
+  case " $release_services " in
+    *" api "*) ;;
+    *) restart_existing_services="${restart_existing_services:+$restart_existing_services }api" ;;
   esac
 fi
 

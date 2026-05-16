@@ -532,6 +532,7 @@ jobs:
           GCP_VM_NAME: ${{ vars.GCP_VM_NAME }}
           GCP_VM_ZONE: ${{ vars.GCP_VM_ZONE }}
           NEXT_PUBLIC_TURNSTILE_SITE_KEY: ${{ vars.NEXT_PUBLIC_TURNSTILE_SITE_KEY }}
+          TURNSTILE_SECRET_KEY: ${{ secrets.TURNSTILE_SECRET_KEY }}
           RELEASE_SERVICES: ${{ needs.changes.outputs.release_services }}
         run: |
           set -euo pipefail
@@ -543,6 +544,7 @@ jobs:
             GCP_VM_NAME \
             GCP_VM_ZONE \
             NEXT_PUBLIC_TURNSTILE_SITE_KEY \
+            TURNSTILE_SECRET_KEY \
             RELEASE_SERVICES
           do
             value="${!name:-}"
@@ -669,14 +671,27 @@ jobs:
           REMOTE_RELEASE_IMAGE_ARCHIVE: /tmp/portfolio-production-${{ github.sha }}.tar.gz
           REMOTE_DEPLOY_SCRIPT: /tmp/portfolio-deploy-production-${{ github.sha }}.sh
           RELEASE_SERVICES: ${{ needs.changes.outputs.release_services }}
+          NEXT_PUBLIC_TURNSTILE_SITE_KEY: ${{ vars.NEXT_PUBLIC_TURNSTILE_SITE_KEY }}
+          TURNSTILE_SECRET_KEY: ${{ secrets.TURNSTILE_SECRET_KEY }}
         run: |
           set -euo pipefail
+          remote_env=(
+            "APP_DIR=$APP_DIR"
+            "RELEASE_IMAGE_ARCHIVE=$REMOTE_RELEASE_IMAGE_ARCHIVE"
+            "DEPLOY_MODE=production"
+            "RUN_BACKUP=true"
+            "EXPECTED_IMAGE_REVISION=$GITHUB_SHA"
+            "RELEASE_SERVICES=$RELEASE_SERVICES"
+            "NEXT_PUBLIC_TURNSTILE_SITE_KEY=$NEXT_PUBLIC_TURNSTILE_SITE_KEY"
+            "TURNSTILE_SECRET_KEY=$TURNSTILE_SECRET_KEY"
+          )
+          printf -v remote_command '%q ' "${remote_env[@]}" bash "$REMOTE_DEPLOY_SCRIPT"
           gcloud compute ssh "$GCP_VM_NAME" \
             --project "$GCP_PROJECT_ID" \
             --zone "$GCP_VM_ZONE" \
             --tunnel-through-iap \
             --quiet \
-            --command "APP_DIR='$APP_DIR' RELEASE_IMAGE_ARCHIVE='$REMOTE_RELEASE_IMAGE_ARCHIVE' DEPLOY_MODE='production' RUN_BACKUP='true' EXPECTED_IMAGE_REVISION='$GITHUB_SHA' RELEASE_SERVICES='$RELEASE_SERVICES' bash '$REMOTE_DEPLOY_SCRIPT'"
+            --command "$remote_command"
 
       - name: Open production IAP tunnel
         env:
