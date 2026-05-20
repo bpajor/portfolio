@@ -40,7 +40,11 @@ test.describe("admin live staging", () => {
       page.getByRole("button", { name: "Sign in" }).click()
     ]);
 
-    expect(loginResponse.status(), await loginResponse.text()).toBe(204);
+    const loginBodyText = await loginResponse.text();
+    expect(loginResponse.status(), loginBodyText).toBe(200);
+    const loginBody = JSON.parse(loginBodyText) as { email: string; role: string };
+    expect(loginBody.email.toLowerCase()).toBe((adminEmail ?? "").toLowerCase());
+    expect(loginBody.role).toBe("admin");
     await expect(page).toHaveURL(/\/admin$/);
     await expect(page.getByRole("heading", { name: "Publishing dashboard", exact: true })).toBeVisible();
   });
