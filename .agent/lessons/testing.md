@@ -66,3 +66,24 @@ What I should have done:
 Working rule:
 
 - When behavior changes from placeholder/simulated to integrated/real, revisit old assertions. Tests should encode the current contract and end-to-end acceptance, not historical implementation details.
+
+## 2026-05-20 - Live E2E asserted the remembered login status instead of the API contract
+
+What happened:
+
+- The live staging admin login test expected `204`, but the real backend returns `200` with the admin identity payload.
+- The deployed staging E2E failed even though the login flow itself worked.
+
+Why it happened:
+
+- I carried over an assumption from a simpler local/mocked login check instead of re-reading the API handler before asserting the live contract.
+- I treated "successful login" as a generic outcome and did not verify the exact status/body semantics that the deployed test should encode.
+
+What I should have done:
+
+- Before adding or changing live E2E assertions, inspect the authoritative server handler or API contract for status codes and response bodies.
+- Assert the meaningful contract, not just a success code. In this case that means `200`, matching admin email, and `role: admin`.
+
+Working rule:
+
+- Live tests should encode the real API contract. If the assertion involves status codes, response body shape, cookies, redirects, or auth state, confirm it against the backend implementation or contract before pushing.
