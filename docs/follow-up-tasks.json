@@ -172,7 +172,7 @@
     {
       "id": "staging-real-admin-e2e",
       "title": "Run real staging admin E2E after deploy",
-      "status": "partial",
+      "status": "completed",
       "priority": "high",
       "goal": "Verify deployed staging with the real API, database, Caddy, cookies, and IAP tunnel.",
       "scope": [
@@ -195,6 +195,11 @@
         "Playwright staging E2E with the real backend.",
         "Cleanup verification step.",
         "Failure artifact upload with traces and screenshots."
+      ],
+      "notes": [
+        "Deploy workflow creates a short-lived admin session token and reads masked staging admin credentials from the VM environment for E2E.",
+        "Live staging E2E validates admin login, post create/update/delete, published post public visibility, pending comment creation, moderation, approved public comment visibility, and cleanup.",
+        "Staging E2E artifacts are uploaded on failure for debugging."
       ]
     },
     {
