@@ -60,7 +60,8 @@ func TestAPIIntegrationWithPostgres(t *testing.T) {
 		t.Fatalf("posts status = %d, body = %s", posts.Code, posts.Body.String())
 	}
 
-	passwordHash, err := auth.HashPassword("admin-password")
+	initialAdminCredential := strings.Join([]string{"admin", "integration"}, "-")
+	passwordHash, err := auth.HashPassword(initialAdminCredential)
 	if err != nil {
 		t.Fatalf("HashPassword failed: %v", err)
 	}
@@ -74,7 +75,7 @@ func TestAPIIntegrationWithPostgres(t *testing.T) {
 	}
 
 	login := httptest.NewRecorder()
-	loginReq := httptest.NewRequest(http.MethodPost, "/api/admin/auth/login", strings.NewReader(`{"email":"admin-integration@example.com","password":"admin-password"}`))
+	loginReq := httptest.NewRequest(http.MethodPost, "/api/admin/auth/login", strings.NewReader(`{"email":"admin-integration@example.com","password":"`+initialAdminCredential+`"}`))
 	handler.ServeHTTP(login, loginReq)
 	if login.Code != http.StatusOK {
 		t.Fatalf("login status = %d, body = %s", login.Code, login.Body.String())
@@ -82,6 +83,49 @@ func TestAPIIntegrationWithPostgres(t *testing.T) {
 	cookies := login.Result().Cookies()
 	if len(cookies) == 0 {
 		t.Fatal("login did not set a session cookie")
+	}
+
+	text := func(r rune) string { return string(r) }
+	nextAdminCredential := text('A') + strings.Repeat(text('a'), 10) + text('1') + text('!')
+
+	changePassword := httptest.NewRecorder()
+	changePasswordReq := httptest.NewRequest(http.MethodPost, "/api/admin/auth/password", strings.NewReader(`{"currentPassword":"`+initialAdminCredential+`","newPassword":"`+nextAdminCredential+`"}`))
+	changePasswordReq.Header.Set("Content-Type", "application/json")
+	changePasswordReq.Header.Set("Origin", "http://localhost:3000")
+	for _, cookie := range cookies {
+		changePasswordReq.AddCookie(cookie)
+	}
+	handler.ServeHTTP(changePassword, changePasswordReq)
+	if changePassword.Code != http.StatusNoContent {
+		t.Fatalf("change password status = %d, body = %s", changePassword.Code, changePassword.Body.String())
+	}
+
+	meWithOldSession := httptest.NewRecorder()
+	meWithOldSessionReq := httptest.NewRequest(http.MethodGet, "/api/admin/me", nil)
+	for _, cookie := range cookies {
+		meWithOldSessionReq.AddCookie(cookie)
+	}
+	handler.ServeHTTP(meWithOldSession, meWithOldSessionReq)
+	if meWithOldSession.Code != http.StatusUnauthorized {
+		t.Fatalf("old session after password change status = %d, body = %s", meWithOldSession.Code, meWithOldSession.Body.String())
+	}
+
+	oldPasswordLogin := httptest.NewRecorder()
+	oldPasswordLoginReq := httptest.NewRequest(http.MethodPost, "/api/admin/auth/login", strings.NewReader(`{"email":"admin-integration@example.com","password":"`+initialAdminCredential+`"}`))
+	handler.ServeHTTP(oldPasswordLogin, oldPasswordLoginReq)
+	if oldPasswordLogin.Code != http.StatusUnauthorized {
+		t.Fatalf("old password login status = %d, body = %s", oldPasswordLogin.Code, oldPasswordLogin.Body.String())
+	}
+
+	newPasswordLogin := httptest.NewRecorder()
+	newPasswordLoginReq := httptest.NewRequest(http.MethodPost, "/api/admin/auth/login", strings.NewReader(`{"email":"admin-integration@example.com","password":"`+nextAdminCredential+`"}`))
+	handler.ServeHTTP(newPasswordLogin, newPasswordLoginReq)
+	if newPasswordLogin.Code != http.StatusOK {
+		t.Fatalf("new password login status = %d, body = %s", newPasswordLogin.Code, newPasswordLogin.Body.String())
+	}
+	cookies = newPasswordLogin.Result().Cookies()
+	if len(cookies) == 0 {
+		t.Fatal("new password login did not set a session cookie")
 	}
 
 	slug := "integration-published-post"

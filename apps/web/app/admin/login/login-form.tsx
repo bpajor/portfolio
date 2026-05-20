@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import { apiUrl } from "../../api-url";
@@ -9,16 +9,7 @@ export function AdminLoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [error, setError] = useState("");
-  const [isReady, setReady] = useState(false);
   const [isSubmitting, setSubmitting] = useState(false);
-
-  useEffect(() => {
-    const timeoutId = window.setTimeout(() => {
-      setReady(true);
-    }, 0);
-
-    return () => window.clearTimeout(timeoutId);
-  }, []);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -57,7 +48,7 @@ export function AdminLoginForm() {
         <input name="password" type="password" required className="h-11 rounded-md border border-white/10 bg-slate-950 px-3 text-slate-100 outline-none ring-sky-300/30 focus:border-sky-300/50 focus:ring-4" />
       </label>
       {error ? <p className="text-sm text-red-300">{error}</p> : null}
-      <button type="submit" disabled={!isReady || isSubmitting} className="mt-2 h-11 rounded-md bg-sky-300 px-4 text-sm font-semibold text-slate-950 hover:bg-sky-200 disabled:cursor-not-allowed disabled:opacity-60">
+      <button type="submit" disabled={isSubmitting} className="mt-2 h-11 rounded-md bg-sky-300 px-4 text-sm font-semibold text-slate-950 hover:bg-sky-200 disabled:cursor-not-allowed disabled:opacity-60">
         {isSubmitting ? "Signing in..." : "Sign in"}
       </button>
     </form>

@@ -40,11 +40,13 @@ type Querier interface {
 	ListPublishedPosts(ctx context.Context) ([]ListPublishedPostsRow, error)
 	ModerateComment(ctx context.Context, arg ModerateCommentParams) (Comment, error)
 	RevokeSession(ctx context.Context, tokenHash string) error
+	RevokeSessionsByUserID(ctx context.Context, userID uuid.UUID) error
 	UpdateContactMessageStatus(ctx context.Context, arg UpdateContactMessageStatusParams) (UpdateContactMessageStatusRow, error)
 	UpdatePost(ctx context.Context, arg UpdatePostParams) (Post, error)
 	UpdateProfile(ctx context.Context, arg UpdateProfileParams) (Profile, error)
 	UpdateProject(ctx context.Context, arg UpdateProjectParams) (Project, error)
 	UpdateUserLastLogin(ctx context.Context, id uuid.UUID) error
+	UpdateUserPassword(ctx context.Context, arg UpdateUserPasswordParams) error
 }
 
 var _ Querier = (*Queries)(nil)

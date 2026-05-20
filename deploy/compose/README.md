@@ -131,3 +131,22 @@ The restore helper creates a pre-restore backup unless `SKIP_PRE_RESTORE_BACKUP=
 - Caddy is the only public service and exposes ports `80` and `443`.
 - MCP requires bearer authentication and validates allowed origins.
 - Admin API is protected by the application session cookie.
+
+## Admin Account Operations
+
+The admin panel includes a sign-out action and an account page for password changes:
+
+```text
+/admin/account
+```
+
+Changing the admin password revokes existing admin sessions, including the current browser session, so sign in again with the new password afterwards.
+
+For operational recovery on the VM, reset the admin password from the Compose directory:
+
+```bash
+cd /opt/portfolio-production/deploy/compose
+NEW_ADMIN_PASSWORD='replace-with-a-strong-password' ./reset-admin-password.sh
+```
+
+The reset helper creates a pre-reset database backup by default and revokes existing admin sessions. Set `SKIP_BACKUP=true` only if you have already created a recent backup and understand the risk.
