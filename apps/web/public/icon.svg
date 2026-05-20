@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">Blazej Pajor monogram</title>
+  <desc id="desc">A dark technical BP monogram with a cyan accent.</desc>
+  <rect width="512" height="512" rx="104" fill="#050b18"/>
+  <rect x="38" y="38" width="436" height="436" rx="78" fill="#0b1426" stroke="#243653" stroke-width="20"/>
+  <path d="M96 108h48v296H96z" fill="#7dd3fc"/>
+  <path d="M368 92h48v90h-48z" fill="#7dd3fc"/>
+  <path d="M368 330h48v90h-48z" fill="#7dd3fc"/>
+  <text x="256" y="316" text-anchor="middle" fill="#f8fbff" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="182" font-weight="850">BP</text>
+  <path d="M110 404h292" stroke="#7dd3fc" stroke-width="18" stroke-linecap="round"/>
+</svg>

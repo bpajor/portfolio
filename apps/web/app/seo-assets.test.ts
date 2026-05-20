@@ -1,4 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import sitemap from "./sitemap";
 import { GET as aiContextGET } from "./ai-context.json/route";
 import { GET as llmsGET } from "./llms.txt/route";
@@ -81,6 +83,23 @@ describe("SEO crawler assets", () => {
         slug: "api-seo-post",
         url: "http://localhost:3000/blog/api-seo-post"
       })
+    );
+  });
+
+  it("ships favicon and installable icon assets", () => {
+    for (const file of ["favicon.ico", "icon.svg", "apple-touch-icon.png", "icon-192.png", "icon-512.png"]) {
+      expect(existsSync(join(process.cwd(), "public", file)), `${file} should exist`).toBe(true);
+    }
+
+    const favicon = readFileSync(join(process.cwd(), "public", "favicon.ico"));
+    expect(favicon.subarray(0, 4)).toEqual(Buffer.from([0, 0, 1, 0]));
+
+    const manifest = JSON.parse(readFileSync(join(process.cwd(), "public", "site.webmanifest"), "utf8"));
+    expect(manifest.icons).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ src: "/icon-192.png", sizes: "192x192", type: "image/png" }),
+        expect.objectContaining({ src: "/icon-512.png", sizes: "512x512", type: "image/png" })
+      ])
     );
   });
 });
