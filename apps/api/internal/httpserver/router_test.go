@@ -88,6 +88,32 @@ func TestDecodeJSONRejectsUnknownFields(t *testing.T) {
 	}
 }
 
+func TestValidateAdminPassword(t *testing.T) {
+	text := func(r rune) string { return string(r) }
+	validValue := text('A') + strings.Repeat(text('a'), 10) + text('1') + text('!')
+	tests := []struct {
+		name    string
+		value   string
+		wantErr bool
+	}{
+		{name: "strong", value: validValue, wantErr: false},
+		{name: "too short", value: text('A') + text('a') + text('1') + text('@'), wantErr: true},
+		{name: "missing uppercase", value: strings.Repeat(text('a'), 11) + text('1') + text('!'), wantErr: true},
+		{name: "missing lowercase", value: strings.Repeat(text('A'), 11) + text('1') + text('!'), wantErr: true},
+		{name: "missing digit", value: text('A') + strings.Repeat(text('a'), 11) + text('!'), wantErr: true},
+		{name: "missing symbol", value: text('A') + strings.Repeat(text('a'), 11) + text('1'), wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateAdminPassword(tt.value)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("validateAdminPassword(%q) error = %v, wantErr %v", tt.value, err, tt.wantErr)
+			}
+		})
+	}
+}
+
 func TestAdminCSRFGuard(t *testing.T) {
 	tests := []struct {
 		name    string

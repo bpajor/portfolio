@@ -15,6 +15,10 @@ Each iteration:
 9. If the work reveals a new mistake, missed check, or reusable process improvement, record it in the most relevant `.agent/lessons/*.md` topic file. Create a new topic file when no existing topic fits. Keep `.agent/lessons-learned.md` as a short index and add only general decision rules there.
 10. Stop with a concise status summary.
 
+Tooling rule:
+
+- When a required local command is unavailable but an appropriate Docker image is present, run the formatter, test, or validation command through Docker instead of blocking on host setup. Prefer existing local images and keep the command scoped to the repository.
+
 Project constraints:
 
 - Backend is Go.

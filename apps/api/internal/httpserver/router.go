@@ -103,6 +103,7 @@ func New(cfg config.Config, logger *slog.Logger, db *pgxpool.Pool, repo content.
 
 				r.Group(func(r chi.Router) {
 					r.Use(server.requireAdminCSRF)
+					r.Post("/auth/password", server.adminChangePassword)
 					r.Post("/posts", server.adminCreatePost)
 					r.Put("/posts/{id}", server.adminUpdatePost)
 					r.Delete("/posts/{id}", server.adminDeletePost)
@@ -396,6 +397,88 @@ func (s Server) adminMe(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (s Server) adminChangePassword(w http.ResponseWriter, r *http.Request) {
+	session, ok := currentAdmin(r)
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "auth_required", "Admin authentication is required.")
+		return
+	}
+
+	var req changePasswordRequest
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", "Request body is invalid.")
+		return
+	}
+
+	req.CurrentPassword = strings.TrimSpace(req.CurrentPassword)
+	req.NewPassword = strings.TrimSpace(req.NewPassword)
+	if req.CurrentPassword == "" || req.NewPassword == "" {
+		writeError(w, http.StatusBadRequest, "password_required", "Current password and new password are required.")
+		return
+	}
+	if err := validateAdminPassword(req.NewPassword); err != nil {
+		writeError(w, http.StatusBadRequest, "password_weak", err.Error())
+		return
+	}
+
+	user, err := s.queries.GetUserByEmail(r.Context(), strings.TrimSpace(strings.ToLower(session.Email)))
+	if errors.Is(err, pgx.ErrNoRows) {
+		writeError(w, http.StatusUnauthorized, "auth_required", "Admin authentication is required.")
+		return
+	}
+	if err != nil {
+		s.logger.Error("password change user lookup failed", "error", err)
+		writeError(w, http.StatusInternalServerError, "password_change_unavailable", "Password change is temporarily unavailable.")
+		return
+	}
+	if user.ID != session.UserID || !auth.CheckPassword(user.PasswordHash, req.CurrentPassword) {
+		writeError(w, http.StatusUnauthorized, "invalid_credentials", "Current password is invalid.")
+		return
+	}
+
+	nextHash, err := auth.HashPassword(req.NewPassword)
+	if err != nil {
+		s.logger.Error("password hash failed", "error", err)
+		writeError(w, http.StatusInternalServerError, "password_change_unavailable", "Password change is temporarily unavailable.")
+		return
+	}
+
+	if s.db == nil {
+		writeNoDatabase(w)
+		return
+	}
+	tx, err := s.db.Begin(r.Context())
+	if err != nil {
+		s.logger.Error("password change transaction begin failed", "error", err)
+		writeError(w, http.StatusInternalServerError, "password_change_unavailable", "Password change is temporarily unavailable.")
+		return
+	}
+	defer tx.Rollback(r.Context())
+
+	qtx := s.queries.WithTx(tx)
+	if err := qtx.UpdateUserPassword(r.Context(), apidb.UpdateUserPasswordParams{
+		ID:           session.UserID,
+		PasswordHash: nextHash,
+	}); err != nil {
+		s.logger.Error("password update failed", "error", err)
+		writeError(w, http.StatusInternalServerError, "password_change_unavailable", "Password change is temporarily unavailable.")
+		return
+	}
+	if err := qtx.RevokeSessionsByUserID(r.Context(), session.UserID); err != nil {
+		s.logger.Error("session revoke after password change failed", "error", err)
+		writeError(w, http.StatusInternalServerError, "password_change_unavailable", "Password change is temporarily unavailable.")
+		return
+	}
+	if err := tx.Commit(r.Context()); err != nil {
+		s.logger.Error("password change transaction commit failed", "error", err)
+		writeError(w, http.StatusInternalServerError, "password_change_unavailable", "Password change is temporarily unavailable.")
+		return
+	}
+
+	http.SetCookie(w, s.clearSessionCookie())
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func (s Server) adminListPosts(w http.ResponseWriter, r *http.Request) {
 	posts, err := s.queries.AdminListPosts(r.Context())
 	if err != nil {
@@ -635,6 +718,30 @@ func (s Server) requireAdmin(next http.Handler) http.Handler {
 		})
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
+}
+
+func currentAdmin(r *http.Request) (adminSession, bool) {
+	session, ok := r.Context().Value(adminContextKey).(adminSession)
+	return session, ok
+}
+
+func validateAdminPassword(password string) error {
+	if len(password) < 12 {
+		return errors.New("New password must be at least 12 characters.")
+	}
+	if !regexp.MustCompile(`[a-z]`).MatchString(password) {
+		return errors.New("New password must contain a lowercase letter.")
+	}
+	if !regexp.MustCompile(`[A-Z]`).MatchString(password) {
+		return errors.New("New password must contain an uppercase letter.")
+	}
+	if !regexp.MustCompile(`[0-9]`).MatchString(password) {
+		return errors.New("New password must contain a digit.")
+	}
+	if !regexp.MustCompile(`[^A-Za-z0-9]`).MatchString(password) {
+		return errors.New("New password must contain a symbol.")
+	}
+	return nil
 }
 
 func (s Server) requireAdminCSRF(next http.Handler) http.Handler {
@@ -903,6 +1010,11 @@ func (s Server) verifyTurnstile(ctx context.Context, token string, remoteAddr st
 type loginRequest struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
+}
+
+type changePasswordRequest struct {
+	CurrentPassword string `json:"currentPassword"`
+	NewPassword     string `json:"newPassword"`
 }
 
 type postRequest struct {

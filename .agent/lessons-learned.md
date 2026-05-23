@@ -14,6 +14,8 @@ Read this index before making implementation, CI, deployment, infrastructure, au
 - Prefer tests that fail for the right reason over tests that merely pass in one environment.
 - Keep smoke tests focused on stable contracts; use seeded or mocked data for mutable content.
 - Repeated operational pain is a design constraint, not just an incident.
+- If a required local tool is missing but a suitable Docker image exists, use Docker for formatting, tests, and validation instead of stalling or changing the host machine.
+- Never commit real or reused operational secrets as test fixtures. Use generated, synthetic, or dynamically constructed fake values.
 
 ## Topic Files
 

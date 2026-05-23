@@ -1,6 +1,10 @@
 import { expect, test, type Page } from "@playwright/test";
 
 test.describe("admin surface", () => {
+  const text = (...codes: number[]) => String.fromCharCode(...codes);
+  const credentialCandidate = [text(65), text(97).repeat(10), text(49), text(33)].join("");
+  const alternateCredentialCandidate = [text(66), text(98).repeat(10), text(50), text(33)].join("");
+
   async function signInByCookie(page: Page) {
     await page.goto("/");
     await page.context().addCookies([
@@ -46,6 +50,62 @@ test.describe("admin surface", () => {
 
     expect(new URL(request.url()).pathname).toBe("/api/admin/auth/login");
     await expect(page.getByText("Email or password is invalid.")).toBeVisible();
+  });
+
+  test("signs out from the admin shell", async ({ page }) => {
+    await signInByCookie(page);
+
+    await page.route("**/api/admin/auth/logout", async (route) => {
+      expect(route.request().method()).toBe("POST");
+      await route.fulfill({ status: 204 });
+    });
+
+    await page.goto("/admin");
+    await page.getByRole("button", { name: "Sign out" }).click();
+    await expect(page).toHaveURL(/\/admin\/login/);
+  });
+
+  test("changes admin password through the account page", async ({ page }) => {
+    await signInByCookie(page);
+
+    let payload: Record<string, unknown> | null = null;
+    await page.route("**/api/admin/auth/password", async (route) => {
+      expect(route.request().method()).toBe("POST");
+      payload = route.request().postDataJSON() as Record<string, unknown>;
+      await route.fulfill({ status: 204 });
+    });
+
+    await page.goto("/admin/account");
+    await expect(page.getByRole("heading", { name: "Account" })).toBeVisible();
+    await page.getByLabel("Current password").fill("old-password");
+    await page.getByLabel("New password", { exact: true }).fill(credentialCandidate);
+    await page.getByLabel("Confirm new password").fill(credentialCandidate);
+    await page.getByRole("button", { name: "Change password" }).click();
+
+    expect(payload).toEqual({
+      currentPassword: "old-password",
+      newPassword: credentialCandidate
+    });
+    await expect(page).toHaveURL(/\/admin\/login/);
+  });
+
+  test("validates admin password confirmation before submitting", async ({ page }) => {
+    await signInByCookie(page);
+
+    let requestCount = 0;
+    await page.route("**/api/admin/auth/password", async (route) => {
+      requestCount += 1;
+      await route.fulfill({ status: 204 });
+    });
+
+    await page.goto("/admin/account");
+    await page.getByLabel("Current password").fill("old-password");
+    await page.getByLabel("New password", { exact: true }).fill(credentialCandidate);
+    await page.getByLabel("Confirm new password").fill(alternateCredentialCandidate);
+    await page.getByRole("button", { name: "Change password" }).click();
+
+    await expect(page.getByText("New passwords do not match.")).toBeVisible();
+    expect(requestCount).toBe(0);
   });
 
   test("publishes a new blog post through the admin form", async ({ page }) => {

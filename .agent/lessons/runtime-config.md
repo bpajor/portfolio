@@ -42,6 +42,27 @@ Working rule:
 
 - Any stricter validation, policy, or invariant for existing deployed data/secrets must ship with a migration or compatibility plan. First inspect current production/staging values, then decide whether to migrate, grandfather, or fail closed.
 
+## 2026-05-20 - Real admin password was reused as a test fixture
+
+What happened:
+
+- A real admin password value was copied into frontend and backend tests as a convenient strong-password fixture.
+- GitGuardian correctly flagged the PR as containing a hardcoded generic password.
+
+Why it happened:
+
+- I optimized for quickly matching the current deployed password policy instead of treating the value as operationally sensitive.
+- I did not scan all touched files for reused secrets before pushing.
+
+What I should have done:
+
+- Use synthetic generated values for tests, preferably built dynamically enough that they cannot be confused with a real credential.
+- Search for any real secret-looking value before commit and after writing tests/docs around auth or env configuration.
+
+Working rule:
+
+- Never use production, staging, or personally chosen credentials as examples, docs, tests, or fixtures. Test credentials must be clearly synthetic and should be generated or constructed in test code.
+
 ## 2026-05-03 - Caddy multi-domain config failed because of comma-separated site addresses
 
 What happened:

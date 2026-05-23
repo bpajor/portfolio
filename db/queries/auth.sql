@@ -26,6 +26,11 @@ UPDATE users
 SET last_login_at = now(), updated_at = now()
 WHERE id = $1;
 
+-- name: UpdateUserPassword :exec
+UPDATE users
+SET password_hash = $2, updated_at = now()
+WHERE id = $1;
+
 -- name: CreateSession :one
 INSERT INTO sessions (
     user_id,
@@ -56,4 +61,10 @@ WHERE s.token_hash = $1
 UPDATE sessions
 SET revoked_at = now()
 WHERE token_hash = $1
+  AND revoked_at IS NULL;
+
+-- name: RevokeSessionsByUserID :exec
+UPDATE sessions
+SET revoked_at = now()
+WHERE user_id = $1
   AND revoked_at IS NULL;

@@ -90,7 +90,7 @@
     {
       "id": "admin-auth-ops",
       "title": "Improve admin account operations",
-      "status": "pending",
+      "status": "completed",
       "priority": "medium",
       "goal": "Make admin access manageable without manual database edits.",
       "scope": [
@@ -113,6 +113,12 @@
         "API tests for password change success and failure.",
         "Playwright E2E for logout.",
         "Playwright E2E for the change password flow."
+      ],
+      "notes": [
+        "Admin shell includes a sign-out action.",
+        "Admin account page supports password changes and client-side strength/confirmation validation.",
+        "API password changes verify the current password, update the hash, revoke existing sessions, and clear the session cookie.",
+        "VM recovery script reset-admin-password.sh updates the admin password with a pre-reset backup by default."
       ]
     },
     {

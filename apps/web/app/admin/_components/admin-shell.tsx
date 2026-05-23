@@ -1,13 +1,15 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { FileText, Image, LayoutDashboard, MessageSquare, Settings, ShieldCheck } from "lucide-react";
+import { FileText, Image, KeyRound, LayoutDashboard, MessageSquare, Settings, ShieldCheck } from "lucide-react";
+import { LogoutButton } from "./logout-button";
 
 const nav = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
   { href: "/admin/posts", label: "Posts", icon: FileText },
   { href: "/admin/comments", label: "Comments", icon: MessageSquare },
   { href: "/admin/projects", label: "Projects", icon: Settings },
-  { href: "/admin/media", label: "Media", icon: Image }
+  { href: "/admin/media", label: "Media", icon: Image },
+  { href: "/admin/account", label: "Account", icon: KeyRound }
 ];
 
 export function AdminShell({ children }: { children: ReactNode }) {
@@ -21,7 +23,10 @@ export function AdminShell({ children }: { children: ReactNode }) {
             </span>
             <span className="font-mono text-sm text-slate-300">Portfolio admin</span>
           </Link>
-          <Link href="/" className="text-sm text-slate-400 hover:text-white">Public site</Link>
+          <div className="flex items-center gap-2">
+            <Link href="/" className="text-sm text-slate-400 hover:text-white">Public site</Link>
+            <LogoutButton />
+          </div>
         </div>
       </div>
 
