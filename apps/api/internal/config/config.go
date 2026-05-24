@@ -12,6 +12,8 @@ type Config struct {
 	DatabaseURL        string
 	AllowedOrigins     []string
 	BodyLimitBytes     int64
+	MediaMaxBytes      int64
+	MediaStorageDir    string
 	AdminEmail         string
 	AdminPassword      string
 	CookieSecure       bool
@@ -30,7 +32,9 @@ func Load() Config {
 		Addr:               env("API_ADDR", ":8080"),
 		DatabaseURL:        env("DATABASE_URL", ""),
 		AllowedOrigins:     csvEnv("API_ALLOWED_ORIGINS", []string{"http://localhost:3000"}),
-		BodyLimitBytes:     int64Env("API_BODY_LIMIT_BYTES", 1<<20),
+		BodyLimitBytes:     int64Env("API_BODY_LIMIT_BYTES", 8<<20),
+		MediaMaxBytes:      int64Env("MEDIA_MAX_BYTES", 5<<20),
+		MediaStorageDir:    env("MEDIA_STORAGE_DIR", "/tmp/portfolio-media"),
 		AdminEmail:         env("ADMIN_EMAIL", ""),
 		AdminPassword:      env("ADMIN_PASSWORD", ""),
 		CookieSecure:       boolEnv("API_COOKIE_SECURE", true),

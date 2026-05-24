@@ -1,8 +1,9 @@
 "use client";
 
-import { FormEvent, useRef, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiUrl } from "../../api-url";
+import { AdminMediaItem } from "../media/media-model";
 import { AdminPost, PostStatus, buildPostPayload } from "./post-model";
 
 type PostFormProps = {
@@ -21,6 +22,33 @@ export function PostForm({ post }: PostFormProps) {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [isSaving, setSaving] = useState(false);
+  const [media, setMedia] = useState<AdminMediaItem[]>([]);
+
+  useEffect(() => {
+    let ignore = false;
+
+    fetch(apiUrl("/admin/media"), { credentials: "include" })
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error("media unavailable");
+        }
+        return response.json() as Promise<AdminMediaItem[]>;
+      })
+      .then((items) => {
+        if (!ignore) {
+          setMedia(items);
+        }
+      })
+      .catch(() => {
+        if (!ignore) {
+          setMedia([]);
+        }
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, []);
 
   async function save(status: PostStatus) {
     const form = formRef.current;
@@ -96,6 +124,17 @@ export function PostForm({ post }: PostFormProps) {
       <label className="grid gap-2 text-sm text-slate-300">
         SEO description
         <textarea name="seoDescription" defaultValue={post?.seoDescription ?? ""} rows={2} className="resize-none rounded-md border border-white/10 bg-slate-950 px-3 py-3 text-slate-100 outline-none focus:border-sky-300/50" />
+      </label>
+
+      <label className="grid gap-2 text-sm text-slate-300">
+        Open Graph image
+        <select name="ogImageId" defaultValue={post?.ogImageId ?? ""} className="h-11 rounded-md border border-white/10 bg-slate-950 px-3 text-slate-100 outline-none focus:border-sky-300/50">
+          <option value="">No image selected</option>
+          {post?.ogImageId && !media.some((item) => item.id === post.ogImageId) ? <option value={post.ogImageId}>Current image</option> : null}
+          {media.map((item) => (
+            <option key={item.id} value={item.id}>{item.filename} - {item.altText}</option>
+          ))}
+        </select>
       </label>
 
       {error ? <p className="text-sm text-red-300">{error}</p> : null}

@@ -19,3 +19,14 @@ WHERE id = $1;
 SELECT *
 FROM media
 ORDER BY created_at DESC;
+
+-- name: UpdateMediaAltText :one
+UPDATE media
+SET alt_text = $2
+WHERE id = $1
+RETURNING *;
+
+-- name: DeleteMedia :one
+DELETE FROM media
+WHERE id = $1
+RETURNING *;

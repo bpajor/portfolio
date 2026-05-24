@@ -1,9 +1,11 @@
 package httpserver
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"log/slog"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -34,6 +36,9 @@ func TestAPIIntegrationWithPostgres(t *testing.T) {
 
 	cfg := config.Load()
 	cfg.AllowedOrigins = []string{"http://localhost:3000"}
+	cfg.BodyLimitBytes = 2 * 1024 * 1024
+	cfg.MediaMaxBytes = 1024 * 1024
+	cfg.MediaStorageDir = t.TempDir()
 	handler := New(cfg, slog.Default(), db, content.NewStaticRepository())
 
 	res := httptest.NewRecorder()
@@ -128,6 +133,98 @@ func TestAPIIntegrationWithPostgres(t *testing.T) {
 		t.Fatal("new password login did not set a session cookie")
 	}
 
+	mediaBody := bytes.Buffer{}
+	mediaWriter := multipart.NewWriter(&mediaBody)
+	if err := mediaWriter.WriteField("altText", "Integration media alt"); err != nil {
+		t.Fatalf("write alt text failed: %v", err)
+	}
+	fileWriter, err := mediaWriter.CreateFormFile("file", "integration-media.png")
+	if err != nil {
+		t.Fatalf("create form file failed: %v", err)
+	}
+	if _, err := fileWriter.Write([]byte{0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n', 0, 0, 0, 0}); err != nil {
+		t.Fatalf("write media file failed: %v", err)
+	}
+	if err := mediaWriter.Close(); err != nil {
+		t.Fatalf("close multipart writer failed: %v", err)
+	}
+
+	uploadMedia := httptest.NewRecorder()
+	uploadMediaReq := httptest.NewRequest(http.MethodPost, "/api/admin/media", &mediaBody)
+	uploadMediaReq.Header.Set("Content-Type", mediaWriter.FormDataContentType())
+	uploadMediaReq.Header.Set("Origin", "http://localhost:3000")
+	for _, cookie := range cookies {
+		uploadMediaReq.AddCookie(cookie)
+	}
+	handler.ServeHTTP(uploadMedia, uploadMediaReq)
+	if uploadMedia.Code != http.StatusCreated {
+		t.Fatalf("upload media status = %d, body = %s", uploadMedia.Code, uploadMedia.Body.String())
+	}
+	var createdMedia struct {
+		ID        string `json:"id"`
+		Filename  string `json:"filename"`
+		MimeType  string `json:"mimeType"`
+		AltText   string `json:"altText"`
+		SizeBytes int64  `json:"sizeBytes"`
+		URL       string `json:"url"`
+	}
+	if err := json.Unmarshal(uploadMedia.Body.Bytes(), &createdMedia); err != nil {
+		t.Fatalf("invalid media JSON: %v", err)
+	}
+	if createdMedia.ID == "" || createdMedia.MimeType != "image/png" || createdMedia.AltText != "Integration media alt" || createdMedia.URL == "" {
+		t.Fatalf("unexpected created media = %#v", createdMedia)
+	}
+
+	adminMedia := httptest.NewRecorder()
+	adminMediaReq := httptest.NewRequest(http.MethodGet, "/api/admin/media", nil)
+	for _, cookie := range cookies {
+		adminMediaReq.AddCookie(cookie)
+	}
+	handler.ServeHTTP(adminMedia, adminMediaReq)
+	if adminMedia.Code != http.StatusOK {
+		t.Fatalf("admin media status = %d, body = %s", adminMedia.Code, adminMedia.Body.String())
+	}
+	var adminMediaItems []struct {
+		ID      string `json:"id"`
+		AltText string `json:"altText"`
+	}
+	if err := json.Unmarshal(adminMedia.Body.Bytes(), &adminMediaItems); err != nil {
+		t.Fatalf("invalid admin media JSON: %v", err)
+	}
+	if len(adminMediaItems) == 0 || adminMediaItems[0].ID != createdMedia.ID {
+		t.Fatalf("admin media items = %#v, want uploaded media first", adminMediaItems)
+	}
+
+	updateMedia := httptest.NewRecorder()
+	updateMediaReq := httptest.NewRequest(http.MethodPut, "/api/admin/media/"+createdMedia.ID, strings.NewReader(`{"altText":"Updated integration media alt"}`))
+	updateMediaReq.Header.Set("Content-Type", "application/json")
+	updateMediaReq.Header.Set("Origin", "http://localhost:3000")
+	for _, cookie := range cookies {
+		updateMediaReq.AddCookie(cookie)
+	}
+	handler.ServeHTTP(updateMedia, updateMediaReq)
+	if updateMedia.Code != http.StatusOK {
+		t.Fatalf("update media status = %d, body = %s", updateMedia.Code, updateMedia.Body.String())
+	}
+	var updatedMedia struct {
+		AltText string `json:"altText"`
+	}
+	if err := json.Unmarshal(updateMedia.Body.Bytes(), &updatedMedia); err != nil {
+		t.Fatalf("invalid updated media JSON: %v", err)
+	}
+	if updatedMedia.AltText != "Updated integration media alt" {
+		t.Fatalf("updated media alt text = %q", updatedMedia.AltText)
+	}
+
+	publicMedia := httptest.NewRecorder()
+	handler.ServeHTTP(publicMedia, httptest.NewRequest(http.MethodGet, "/api/media/"+createdMedia.ID, nil))
+	if publicMedia.Code != http.StatusOK {
+		t.Fatalf("public media status = %d, body = %s", publicMedia.Code, publicMedia.Body.String())
+	}
+	if got := publicMedia.Header().Get("Content-Type"); got != "image/png" {
+		t.Fatalf("public media content type = %q, want image/png", got)
+	}
+
 	slug := "integration-published-post"
 	if _, err := db.Exec(ctx, "DELETE FROM posts WHERE slug = $1", slug); err != nil {
 		t.Fatalf("delete existing integration post failed: %v", err)
@@ -141,6 +238,7 @@ func TestAPIIntegrationWithPostgres(t *testing.T) {
 		"status":"published",
 		"seoTitle":"Integration Published Post",
 		"seoDescription":"Created through the admin API.",
+		"ogImageId":"`+createdMedia.ID+`",
 		"tags":["E2E","Admin"]
 	}`))
 	createReq.Header.Set("Content-Type", "application/json")
@@ -173,13 +271,17 @@ func TestAPIIntegrationWithPostgres(t *testing.T) {
 		t.Fatalf("admin get post status = %d, body = %s", adminGet.Code, adminGet.Body.String())
 	}
 	var adminPost struct {
-		Tags []string `json:"tags"`
+		Tags      []string `json:"tags"`
+		OgImageID string   `json:"ogImageId"`
 	}
 	if err := json.Unmarshal(adminGet.Body.Bytes(), &adminPost); err != nil {
 		t.Fatalf("invalid admin post JSON: %v", err)
 	}
 	if len(adminPost.Tags) != 2 {
 		t.Fatalf("admin post tags = %#v, want persisted tags", adminPost.Tags)
+	}
+	if adminPost.OgImageID != createdMedia.ID {
+		t.Fatalf("admin post ogImageId = %q, want %q", adminPost.OgImageID, createdMedia.ID)
 	}
 
 	publicPost := httptest.NewRecorder()
@@ -281,5 +383,22 @@ func TestAPIIntegrationWithPostgres(t *testing.T) {
 	}
 	if len(approvedComments) != 1 || approvedComments[0].DisplayName != "Integration Reader" {
 		t.Fatalf("approved comments = %#v, want approved integration comment", approvedComments)
+	}
+
+	deleteMedia := httptest.NewRecorder()
+	deleteMediaReq := httptest.NewRequest(http.MethodDelete, "/api/admin/media/"+createdMedia.ID, nil)
+	deleteMediaReq.Header.Set("Origin", "http://localhost:3000")
+	for _, cookie := range cookies {
+		deleteMediaReq.AddCookie(cookie)
+	}
+	handler.ServeHTTP(deleteMedia, deleteMediaReq)
+	if deleteMedia.Code != http.StatusNoContent {
+		t.Fatalf("delete media status = %d, body = %s", deleteMedia.Code, deleteMedia.Body.String())
+	}
+
+	publicMediaAfterDelete := httptest.NewRecorder()
+	handler.ServeHTTP(publicMediaAfterDelete, httptest.NewRequest(http.MethodGet, "/api/media/"+createdMedia.ID, nil))
+	if publicMediaAfterDelete.Code != http.StatusNotFound {
+		t.Fatalf("public media after delete status = %d, want 404; body = %s", publicMediaAfterDelete.Code, publicMediaAfterDelete.Body.String())
 	}
 }

@@ -8,6 +8,7 @@ SELECT
     p.published_at,
     p.seo_title,
     p.seo_description,
+    p.og_image_id,
     p.created_at,
     p.updated_at,
     COALESCE(array_agg(pt.tag ORDER BY pt.tag) FILTER (WHERE pt.tag IS NOT NULL), '{}')::text[] AS tags
@@ -29,6 +30,7 @@ SELECT
     p.published_at,
     p.seo_title,
     p.seo_description,
+    p.og_image_id,
     p.created_at,
     p.updated_at,
     COALESCE(array_agg(pt.tag ORDER BY pt.tag) FILTER (WHERE pt.tag IS NOT NULL), '{}')::text[] AS tags
@@ -48,6 +50,7 @@ SELECT
     published_at,
     seo_title,
     seo_description,
+    og_image_id,
     created_at,
     updated_at
 FROM posts

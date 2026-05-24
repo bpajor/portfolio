@@ -62,6 +62,7 @@ func TestAdminRoutesRequireDatabaseOrSession(t *testing.T) {
 		{method: http.MethodPost, path: "/api/admin/auth/login", body: `{"email":"admin@example.com","password":"secret"}`, want: http.StatusServiceUnavailable, code: "database_required"},
 		{method: http.MethodGet, path: "/api/admin/me", want: http.StatusServiceUnavailable, code: "database_required"},
 		{method: http.MethodGet, path: "/api/admin/posts", want: http.StatusServiceUnavailable, code: "database_required"},
+		{method: http.MethodGet, path: "/api/admin/media", want: http.StatusServiceUnavailable, code: "database_required"},
 	}
 
 	for _, tt := range tests {

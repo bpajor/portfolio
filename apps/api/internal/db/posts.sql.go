@@ -80,6 +80,7 @@ SELECT
     published_at,
     seo_title,
     seo_description,
+    og_image_id,
     created_at,
     updated_at
 FROM posts
@@ -95,6 +96,7 @@ type AdminListPostsRow struct {
 	PublishedAt    pgtype.Timestamptz `json:"published_at"`
 	SeoTitle       string             `json:"seo_title"`
 	SeoDescription string             `json:"seo_description"`
+	OgImageID      pgtype.UUID        `json:"og_image_id"`
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
 }
@@ -117,6 +119,7 @@ func (q *Queries) AdminListPosts(ctx context.Context) ([]AdminListPostsRow, erro
 			&i.PublishedAt,
 			&i.SeoTitle,
 			&i.SeoDescription,
+			&i.OgImageID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -229,6 +232,7 @@ SELECT
     p.published_at,
     p.seo_title,
     p.seo_description,
+    p.og_image_id,
     p.created_at,
     p.updated_at,
     COALESCE(array_agg(pt.tag ORDER BY pt.tag) FILTER (WHERE pt.tag IS NOT NULL), '{}')::text[] AS tags
@@ -250,6 +254,7 @@ type GetPublishedPostBySlugRow struct {
 	PublishedAt          pgtype.Timestamptz `json:"published_at"`
 	SeoTitle             string             `json:"seo_title"`
 	SeoDescription       string             `json:"seo_description"`
+	OgImageID            pgtype.UUID        `json:"og_image_id"`
 	CreatedAt            pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt            pgtype.Timestamptz `json:"updated_at"`
 	Tags                 []string           `json:"tags"`
@@ -269,6 +274,7 @@ func (q *Queries) GetPublishedPostBySlug(ctx context.Context, slug string) (GetP
 		&i.PublishedAt,
 		&i.SeoTitle,
 		&i.SeoDescription,
+		&i.OgImageID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Tags,
@@ -286,6 +292,7 @@ SELECT
     p.published_at,
     p.seo_title,
     p.seo_description,
+    p.og_image_id,
     p.created_at,
     p.updated_at,
     COALESCE(array_agg(pt.tag ORDER BY pt.tag) FILTER (WHERE pt.tag IS NOT NULL), '{}')::text[] AS tags
@@ -305,6 +312,7 @@ type ListPublishedPostsRow struct {
 	PublishedAt    pgtype.Timestamptz `json:"published_at"`
 	SeoTitle       string             `json:"seo_title"`
 	SeoDescription string             `json:"seo_description"`
+	OgImageID      pgtype.UUID        `json:"og_image_id"`
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
 	Tags           []string           `json:"tags"`
@@ -328,6 +336,7 @@ func (q *Queries) ListPublishedPosts(ctx context.Context) ([]ListPublishedPostsR
 			&i.PublishedAt,
 			&i.SeoTitle,
 			&i.SeoDescription,
+			&i.OgImageID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.Tags,

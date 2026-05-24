@@ -27,6 +27,7 @@ type Querier interface {
 	CreatePost(ctx context.Context, arg CreatePostParams) (Post, error)
 	CreateProject(ctx context.Context, arg CreateProjectParams) (Project, error)
 	CreateSession(ctx context.Context, arg CreateSessionParams) (Session, error)
+	DeleteMedia(ctx context.Context, id uuid.UUID) (Medium, error)
 	DeletePost(ctx context.Context, id uuid.UUID) error
 	DeletePostTags(ctx context.Context, postID uuid.UUID) error
 	GetMedia(ctx context.Context, id uuid.UUID) (Medium, error)
@@ -42,6 +43,7 @@ type Querier interface {
 	RevokeSession(ctx context.Context, tokenHash string) error
 	RevokeSessionsByUserID(ctx context.Context, userID uuid.UUID) error
 	UpdateContactMessageStatus(ctx context.Context, arg UpdateContactMessageStatusParams) (UpdateContactMessageStatusRow, error)
+	UpdateMediaAltText(ctx context.Context, arg UpdateMediaAltTextParams) (Medium, error)
 	UpdatePost(ctx context.Context, arg UpdatePostParams) (Post, error)
 	UpdateProfile(ctx context.Context, arg UpdateProfileParams) (Profile, error)
 	UpdateProject(ctx context.Context, arg UpdateProjectParams) (Project, error)

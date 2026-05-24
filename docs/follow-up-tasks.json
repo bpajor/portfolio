@@ -124,7 +124,7 @@
     {
       "id": "admin-media-crud",
       "title": "Implement admin media library",
-      "status": "pending",
+      "status": "completed",
       "priority": "medium",
       "goal": "Allow images and assets to be uploaded and reused in posts or projects.",
       "scope": [
@@ -147,6 +147,12 @@
         "API integration tests for upload, list, and delete metadata.",
         "Playwright E2E for upload, list, and select.",
         "Accessibility checks for required alt text."
+      ],
+      "notes": [
+        "Admin media now supports image upload to a configured VM volume, public serving through /api/media/{id}, list, alt text update, and delete.",
+        "Post editor can select an uploaded media item as the Open Graph image and sends ogImageId to the API.",
+        "API integration coverage exercises upload, list, alt text update, public serving, post association, and delete.",
+        "Playwright coverage exercises upload, list, alt text update, delete, and selecting media while publishing a post."
       ]
     },
     {

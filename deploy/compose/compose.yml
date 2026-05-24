@@ -64,6 +64,10 @@ services:
       SESSION_SECRET: ${SESSION_SECRET}
       TURNSTILE_SECRET_KEY: ${TURNSTILE_SECRET_KEY}
       TURNSTILE_VERIFY_URL: ${TURNSTILE_VERIFY_URL:-https://challenges.cloudflare.com/turnstile/v0/siteverify}
+      MEDIA_STORAGE_DIR: ${MEDIA_STORAGE_DIR:-/data/media}
+      MEDIA_MAX_BYTES: ${MEDIA_MAX_BYTES:-5242880}
+    volumes:
+      - media-data:/data/media
     expose:
       - "8080"
     networks:
@@ -141,5 +145,6 @@ networks:
 
 volumes:
   postgres-data:
+  media-data:
   caddy-data:
   caddy-config:

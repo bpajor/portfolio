@@ -66,7 +66,7 @@ Acceptance criteria:
 
 ## 3. Expand Automated Test Coverage, Especially Playwright E2E
 
-Status: In progress. Public comments, admin post CRUD, admin comment moderation, deployed staging admin checks, CSRF regression coverage, and placeholder-flash coverage have been added. Broader auth ops, media, projects, and full real staging admin flows remain open.
+Status: In progress. Public comments, admin post CRUD, admin comment moderation, deployed staging admin checks, CSRF regression coverage, placeholder-flash coverage, admin auth ops, and admin media CRUD have been added. Broader projects CRUD remains open.
 
 Problem:
 
