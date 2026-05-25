@@ -147,6 +147,13 @@ docker_login_artifact_registry() {
   printf '%s' "$token" | docker login -u oauth2accesstoken --password-stdin "https://$host" >/dev/null
 }
 
+ensure_media_permissions() {
+  if docker compose --env-file .env -f compose.yml config --services | grep -qx "media-permissions"; then
+    log "Ensuring media volume permissions"
+    docker compose --env-file .env -f compose.yml run --rm --no-deps -T media-permissions
+  fi
+}
+
 cd "$APP_DIR"
 log "Updating repository checkout"
 git fetch origin main
@@ -265,6 +272,8 @@ case "$release_transport" in
     exit 1
     ;;
 esac
+
+ensure_media_permissions
 
 log "Recreating application services"
 docker compose --env-file .env -f compose.yml up -d --no-build --force-recreate $release_services

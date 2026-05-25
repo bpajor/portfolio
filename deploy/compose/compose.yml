@@ -50,6 +50,8 @@ services:
       dockerfile: apps/api/Dockerfile
     restart: unless-stopped
     depends_on:
+      media-permissions:
+        condition: service_completed_successfully
       migrate:
         condition: service_completed_successfully
       postgres:
@@ -70,6 +72,19 @@ services:
       - media-data:/data/media
     expose:
       - "8080"
+    networks:
+      - private
+
+  media-permissions:
+    image: alpine:3.23
+    command:
+      - sh
+      - -ec
+      - |
+        mkdir -p /data/media
+        chown -R 100:101 /data/media
+    volumes:
+      - media-data:/data/media
     networks:
       - private
 

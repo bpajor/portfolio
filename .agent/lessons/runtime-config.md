@@ -1,5 +1,26 @@
 # Runtime Configuration and Secrets Lessons
 
+## 2026-05-25 - Writable runtime volume was not owned by the non-root container user
+
+What happened:
+
+- Admin media upload worked in local/API tests but failed on staging through Caddy.
+- The deployed API container ran as the non-root `app` user while the Docker named volume mounted at `/data/media` was owned by root, so the API could not write uploaded files.
+
+Why it happened:
+
+- I validated the HTTP behavior and compose syntax but did not validate the deployed filesystem contract: mount path, owner, permissions, and runtime user.
+- I treated "volume exists" as enough, even though non-root containers need explicit ownership preparation for writable mounts.
+
+What I should have done:
+
+- For every new persistent writable path, check the runtime user and run a write probe in the target container shape.
+- Add an idempotent deploy/init step that prepares ownership instead of relying on manual VM commands or Docker defaults.
+
+Working rule:
+
+- Any feature that writes to runtime storage must verify the full storage contract: configured path, mounted volume, container user, ownership, permissions, persistence, and failure response. For non-root containers, add an explicit init or deploy step that makes writable volumes writable before the service starts.
+
 ## 2026-05-08/16 - Turnstile worked in the browser but API still failed verification
 
 What happened:
