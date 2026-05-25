@@ -112,6 +112,27 @@ test.describe("admin surface", () => {
     await signInByCookie(page);
 
     let payload: Record<string, unknown> | null = null;
+    await page.route("**/api/admin/media", async (route) => {
+      if (route.request().method() === "GET") {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify([
+            {
+              id: "media-hero",
+              filename: "hero.png",
+              mimeType: "image/png",
+              sizeBytes: 1536,
+              altText: "Admin E2E hero image",
+              url: "/api/media/media-hero",
+              createdAt: "2026-05-05T10:00:00Z"
+            }
+          ])
+        });
+        return;
+      }
+      await route.fallback();
+    });
     await page.route("**/api/admin/posts", async (route) => {
       if (route.request().method() !== "POST") {
         await route.fulfill({ status: 200, contentType: "application/json", body: "[]" });
@@ -132,6 +153,7 @@ test.describe("admin surface", () => {
           publishedAt: "2026-05-05T10:00:00Z",
           seoTitle: "Admin E2E Post",
           seoDescription: "Published from the admin panel.",
+          ogImageId: "media-hero",
           tags: ["Admin", "E2E"],
           createdAt: "2026-05-05T10:00:00Z",
           updatedAt: "2026-05-05T10:00:00Z"
@@ -146,6 +168,7 @@ test.describe("admin surface", () => {
     await page.getByLabel("Markdown").fill("## Intro\n\nPublished body.");
     await page.getByRole("textbox", { name: "SEO title", exact: true }).fill("Admin E2E Post");
     await page.getByLabel("SEO description").fill("Published from the admin panel.");
+    await page.getByLabel("Open Graph image").selectOption("media-hero");
     await page.getByLabel("Tags").fill("Admin, E2E");
     await page.getByRole("button", { name: "Publish" }).click();
 
@@ -154,8 +177,92 @@ test.describe("admin surface", () => {
       slug: "admin-e2e-post",
       title: "Admin E2E Post",
       status: "published",
+      ogImageId: "media-hero",
       tags: ["Admin", "E2E"]
     });
+  });
+
+  test("uploads edits and deletes media from the admin library", async ({ page }) => {
+    await signInByCookie(page);
+
+    let mediaItems: Array<Record<string, unknown>> = [];
+    let uploadBody = "";
+    let updatedAltText = "";
+    let deleteRequested = false;
+
+    await page.route("**/api/admin/media", async (route) => {
+      if (route.request().method() === "GET") {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify(mediaItems)
+        });
+        return;
+      }
+      if (route.request().method() === "POST") {
+        uploadBody = route.request().postData() ?? "";
+        mediaItems = [
+          {
+            id: "media-upload",
+            filename: "admin-upload.png",
+            mimeType: "image/png",
+            sizeBytes: 1536,
+            altText: "Initial image alt",
+            url: "/api/media/media-upload",
+            createdAt: "2026-05-05T10:00:00Z"
+          }
+        ];
+        await route.fulfill({
+          status: 201,
+          contentType: "application/json",
+          body: JSON.stringify(mediaItems[0])
+        });
+        return;
+      }
+      await route.fallback();
+    });
+
+    await page.route("**/api/admin/media/media-upload", async (route) => {
+      if (route.request().method() === "PUT") {
+        updatedAltText = (route.request().postDataJSON() as { altText: string }).altText;
+        mediaItems = mediaItems.map((item) => ({ ...item, altText: updatedAltText }));
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify(mediaItems[0])
+        });
+        return;
+      }
+      if (route.request().method() === "DELETE") {
+        deleteRequested = true;
+        mediaItems = [];
+        await route.fulfill({ status: 204 });
+        return;
+      }
+      await route.fallback();
+    });
+
+    await page.goto("/admin/media");
+    await expect(page.getByRole("heading", { name: "Media", exact: true })).toBeVisible();
+    await page.getByLabel("Image file").setInputFiles({
+      name: "admin-upload.png",
+      mimeType: "image/png",
+      buffer: Buffer.from("image")
+    });
+    await page.getByLabel("Alt text").fill("Initial image alt");
+    await page.getByRole("button", { name: "Upload image" }).click();
+
+    await expect(page.getByRole("heading", { name: "admin-upload.png" })).toBeVisible();
+    expect(uploadBody).toContain("Initial image alt");
+
+    await page.getByRole("textbox", { name: "Alt text for admin-upload.png" }).fill("Updated image alt");
+    await page.getByRole("button", { name: "Save alt text for admin-upload.png" }).click();
+    await expect(page.getByText("Alt text updated.")).toBeVisible();
+    expect(updatedAltText).toBe("Updated image alt");
+
+    await page.getByRole("button", { name: "Delete admin-upload.png" }).click();
+    await expect(page.getByText("No media uploaded yet.")).toBeVisible();
+    expect(deleteRequested).toBe(true);
   });
 
   test("edits an existing blog post through the admin form", async ({ page }) => {

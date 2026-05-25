@@ -87,6 +87,27 @@ func (q *Queries) CreateMedia(ctx context.Context, arg CreateMediaParams) (Mediu
 	return i, err
 }
 
+const deleteMedia = `-- name: DeleteMedia :one
+DELETE FROM media
+WHERE id = $1
+RETURNING id, filename, storage_path, mime_type, size_bytes, alt_text, created_at
+`
+
+func (q *Queries) DeleteMedia(ctx context.Context, id uuid.UUID) (Medium, error) {
+	row := q.db.QueryRow(ctx, deleteMedia, id)
+	var i Medium
+	err := row.Scan(
+		&i.ID,
+		&i.Filename,
+		&i.StoragePath,
+		&i.MimeType,
+		&i.SizeBytes,
+		&i.AltText,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const getMedia = `-- name: GetMedia :one
 SELECT id, filename, storage_path, mime_type, size_bytes, alt_text, created_at
 FROM media
@@ -95,6 +116,33 @@ WHERE id = $1
 
 func (q *Queries) GetMedia(ctx context.Context, id uuid.UUID) (Medium, error) {
 	row := q.db.QueryRow(ctx, getMedia, id)
+	var i Medium
+	err := row.Scan(
+		&i.ID,
+		&i.Filename,
+		&i.StoragePath,
+		&i.MimeType,
+		&i.SizeBytes,
+		&i.AltText,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const updateMediaAltText = `-- name: UpdateMediaAltText :one
+UPDATE media
+SET alt_text = $2
+WHERE id = $1
+RETURNING id, filename, storage_path, mime_type, size_bytes, alt_text, created_at
+`
+
+type UpdateMediaAltTextParams struct {
+	ID      uuid.UUID `json:"id"`
+	AltText string    `json:"alt_text"`
+}
+
+func (q *Queries) UpdateMediaAltText(ctx context.Context, arg UpdateMediaAltTextParams) (Medium, error) {
+	row := q.db.QueryRow(ctx, updateMediaAltText, arg.ID, arg.AltText)
 	var i Medium
 	err := row.Scan(
 		&i.ID,

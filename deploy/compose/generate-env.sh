@@ -82,6 +82,8 @@ ADMIN_PASSWORD=${admin_password}
 SESSION_SECRET=${session_secret}
 TURNSTILE_SECRET_KEY=${turnstile_secret}
 TURNSTILE_VERIFY_URL=https://challenges.cloudflare.com/turnstile/v0/siteverify
+MEDIA_STORAGE_DIR=/data/media
+MEDIA_MAX_BYTES=5242880
 
 MCP_BEARER_TOKEN=${mcp_read_token}
 MCP_ADMIN_BEARER_TOKEN=${mcp_admin_token}

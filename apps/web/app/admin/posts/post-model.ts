@@ -10,6 +10,7 @@ export type AdminPost = {
   publishedAt?: string;
   seoTitle: string;
   seoDescription: string;
+  ogImageId?: string | null;
   tags: string[];
   createdAt: string;
   updatedAt: string;
@@ -23,6 +24,7 @@ export type PostPayload = {
   status: PostStatus;
   seoTitle: string;
   seoDescription: string;
+  ogImageId: string | null;
   tags: string[];
 };
 
@@ -47,6 +49,7 @@ export function parseTags(value: FormDataEntryValue | null) {
 
 export function buildPostPayload(form: FormData, status: PostStatus): PostPayload {
   const text = (name: string) => String(form.get(name) ?? "").trim();
+  const ogImageId = text("ogImageId");
 
   return {
     slug: text("slug"),
@@ -56,6 +59,7 @@ export function buildPostPayload(form: FormData, status: PostStatus): PostPayloa
     status,
     seoTitle: text("seoTitle"),
     seoDescription: text("seoDescription"),
+    ogImageId: ogImageId || null,
     tags: parseTags(form.get("tags"))
   };
 }

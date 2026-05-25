@@ -89,6 +89,7 @@ func New(cfg config.Config, logger *slog.Logger, db *pgxpool.Pool, repo content.
 		r.Get("/posts/{slug}", server.getPublishedPost)
 		r.Get("/posts/{slug}/comments", server.listApprovedComments)
 		r.With(httprate.LimitByIP(10, time.Hour)).Post("/posts/{slug}/comments", server.createPendingComment)
+		r.Get("/media/{id}", server.getMedia)
 
 		r.Route("/admin", func(r chi.Router) {
 			r.Post("/auth/login", server.adminLogin)
@@ -100,6 +101,7 @@ func New(cfg config.Config, logger *slog.Logger, db *pgxpool.Pool, repo content.
 				r.Get("/posts", server.adminListPosts)
 				r.Get("/posts/{id}", server.adminGetPost)
 				r.Get("/comments", server.adminListComments)
+				r.Get("/media", server.adminListMedia)
 
 				r.Group(func(r chi.Router) {
 					r.Use(server.requireAdminCSRF)
@@ -108,6 +110,9 @@ func New(cfg config.Config, logger *slog.Logger, db *pgxpool.Pool, repo content.
 					r.Put("/posts/{id}", server.adminUpdatePost)
 					r.Delete("/posts/{id}", server.adminDeletePost)
 					r.Put("/comments/{id}/moderate", server.adminModerateComment)
+					r.Post("/media", server.adminUploadMedia)
+					r.Put("/media/{id}", server.adminUpdateMedia)
+					r.Delete("/media/{id}", server.adminDeleteMedia)
 				})
 			})
 		})
@@ -524,6 +529,10 @@ func (s Server) adminCreatePost(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	ogImageID, ok := s.parseOptionalMediaID(w, r, req.OgImageID)
+	if !ok {
+		return
+	}
 
 	session := adminFromContext(r.Context())
 	post, err := s.queries.CreatePost(r.Context(), apidb.CreatePostParams{
@@ -537,7 +546,7 @@ func (s Server) adminCreatePost(w http.ResponseWriter, r *http.Request) {
 		AuthorID:             pgUUID(session.UserID),
 		SeoTitle:             req.SeoTitle,
 		SeoDescription:       req.SeoDescription,
-		OgImageID:            pgtype.UUID{},
+		OgImageID:            ogImageID,
 	})
 	if err != nil {
 		s.logger.Error("admin create post failed", "error", err)
@@ -561,6 +570,10 @@ func (s Server) adminUpdatePost(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	ogImageID, ok := s.parseOptionalMediaID(w, r, req.OgImageID)
+	if !ok {
+		return
+	}
 
 	post, err := s.queries.UpdatePost(r.Context(), apidb.UpdatePostParams{
 		ID:                   id,
@@ -573,7 +586,7 @@ func (s Server) adminUpdatePost(w http.ResponseWriter, r *http.Request) {
 		PublishedAt:          publishedAt(req.status()),
 		SeoTitle:             req.SeoTitle,
 		SeoDescription:       req.SeoDescription,
-		OgImageID:            pgtype.UUID{},
+		OgImageID:            ogImageID,
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		writeError(w, http.StatusNotFound, "post_not_found", "Post was not found.")
@@ -1025,6 +1038,7 @@ type postRequest struct {
 	Status          string   `json:"status"`
 	SeoTitle        string   `json:"seoTitle"`
 	SeoDescription  string   `json:"seoDescription"`
+	OgImageID       *string  `json:"ogImageId"`
 	Tags            []string `json:"tags"`
 }
 
@@ -1092,6 +1106,7 @@ type postResponse struct {
 	PublishedAt          *time.Time `json:"publishedAt,omitempty"`
 	SeoTitle             string     `json:"seoTitle"`
 	SeoDescription       string     `json:"seoDescription"`
+	OgImageID            *string    `json:"ogImageId,omitempty"`
 	Tags                 []string   `json:"tags"`
 	CreatedAt            time.Time  `json:"createdAt"`
 	UpdatedAt            time.Time  `json:"updatedAt"`
@@ -1175,6 +1190,7 @@ func publishedPostRowToResponse(post apidb.ListPublishedPostsRow) postResponse {
 		PublishedAt:    pgTimePtr(post.PublishedAt),
 		SeoTitle:       post.SeoTitle,
 		SeoDescription: post.SeoDescription,
+		OgImageID:      pgUUIDPtr(post.OgImageID),
 		Tags:           post.Tags,
 		CreatedAt:      post.CreatedAt.Time,
 		UpdatedAt:      post.UpdatedAt.Time,
@@ -1193,6 +1209,7 @@ func publishedPostDetailToResponse(post apidb.GetPublishedPostBySlugRow) postRes
 		PublishedAt:          pgTimePtr(post.PublishedAt),
 		SeoTitle:             post.SeoTitle,
 		SeoDescription:       post.SeoDescription,
+		OgImageID:            pgUUIDPtr(post.OgImageID),
 		Tags:                 post.Tags,
 		CreatedAt:            post.CreatedAt.Time,
 		UpdatedAt:            post.UpdatedAt.Time,
@@ -1210,6 +1227,7 @@ func adminPostRowToResponse(post apidb.AdminListPostsRow) postResponse {
 		PublishedAt:    pgTimePtr(post.PublishedAt),
 		SeoTitle:       post.SeoTitle,
 		SeoDescription: post.SeoDescription,
+		OgImageID:      pgUUIDPtr(post.OgImageID),
 		Tags:           []string{},
 		CreatedAt:      post.CreatedAt.Time,
 		UpdatedAt:      post.UpdatedAt.Time,
@@ -1228,6 +1246,7 @@ func postModelToResponse(post apidb.Post, tags []string) postResponse {
 		PublishedAt:          pgTimePtr(post.PublishedAt),
 		SeoTitle:             post.SeoTitle,
 		SeoDescription:       post.SeoDescription,
+		OgImageID:            pgUUIDPtr(post.OgImageID),
 		Tags:                 tags,
 		CreatedAt:            post.CreatedAt.Time,
 		UpdatedAt:            post.UpdatedAt.Time,
@@ -1307,6 +1326,14 @@ func pgTimePtr(value pgtype.Timestamptz) *time.Time {
 
 func pgUUID(id uuid.UUID) pgtype.UUID {
 	return pgtype.UUID{Bytes: id, Valid: true}
+}
+
+func pgUUIDPtr(value pgtype.UUID) *string {
+	if !value.Valid {
+		return nil
+	}
+	id := uuid.UUID(value.Bytes).String()
+	return &id
 }
 
 func (s Server) privacyHash(value string) string {

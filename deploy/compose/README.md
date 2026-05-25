@@ -55,6 +55,8 @@ docker compose -f compose.yml up -d --build
 
 GitHub Actions deployments build the `web`, `api`, and `mcp` images outside the VM and load them on the VM before starting Compose with `--no-build`. Image names are derived from `COMPOSE_PROJECT_NAME`, for example `portfolio-production-web:latest`, `portfolio-production-api:latest`, and `portfolio-production-mcp:latest`.
 
+Uploaded admin media is stored by the API in `MEDIA_STORAGE_DIR`, which defaults to `/data/media` inside the `media-data` Docker volume. Keep separate `COMPOSE_PROJECT_NAME` values for staging and production so media volumes stay isolated. `MEDIA_MAX_BYTES` defaults to `5242880` bytes per uploaded image.
+
 For a local smoke test without binding host port 80, set:
 
 ```bash

@@ -14,6 +14,7 @@ describe("admin post model", () => {
     form.set("contentMarkdown", " ## Intro ");
     form.set("seoTitle", " SEO title ");
     form.set("seoDescription", " SEO description ");
+    form.set("ogImageId", " media-123 ");
     form.set("tags", "Go, GCP");
 
     expect(buildPostPayload(form, "published")).toEqual({
@@ -24,8 +25,16 @@ describe("admin post model", () => {
       status: "published",
       seoTitle: "SEO title",
       seoDescription: "SEO description",
+      ogImageId: "media-123",
       tags: ["Go", "GCP"]
     });
+  });
+
+  it("sends null when no Open Graph image is selected", () => {
+    const form = new FormData();
+    form.set("title", "Plain Post");
+
+    expect(buildPostPayload(form, "draft").ogImageId).toBeNull();
   });
 
   it("formats missing publication dates as draft-friendly text", () => {
