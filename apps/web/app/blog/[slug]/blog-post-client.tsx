@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -84,13 +83,11 @@ export function BlogPostClient({ slug, initialPost }: { slug: string; initialPos
         ))}
       </div>
       {post.ogImageId ? (
-        <Image
+        // eslint-disable-next-line @next/next/no-img-element -- Uploaded media has unknown dimensions, so native img preserves the original aspect ratio without cropping.
+        <img
           src={apiUrl(`/media/${post.ogImageId}`)}
           alt={post.title}
-          width={1200}
-          height={675}
-          unoptimized
-          className="mt-8 aspect-[16/9] w-full rounded-md border border-white/10 object-cover"
+          className="mx-auto mt-8 max-h-[72vh] max-w-full rounded-md border border-white/10"
         />
       ) : null}
 
