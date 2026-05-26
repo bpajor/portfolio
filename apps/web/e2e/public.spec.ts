@@ -139,7 +139,10 @@ test.describe("public website", () => {
 
     await page.goto("/blog/admin-e2e-post");
     await expect(page.getByRole("heading", { name: "Admin E2E Post" })).toBeVisible();
-    await expect(page.getByRole("img", { name: "Admin E2E Post" })).toHaveAttribute("src", /\/api\/media\/media-hero/);
+    const postImage = page.getByRole("img", { name: "Admin E2E Post" });
+    await expect(postImage).toHaveAttribute("src", /\/api\/media\/media-hero/);
+    await expect(postImage).not.toHaveClass(/object-cover/);
+    await expect(postImage).not.toHaveClass(/aspect-\[16\/9\]/);
     await expect(page.getByText("Published body.")).toBeVisible();
   });
 

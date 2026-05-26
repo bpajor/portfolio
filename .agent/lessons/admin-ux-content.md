@@ -84,3 +84,25 @@ What I should have done:
 Working rule:
 
 - When a feature moves data from admin input to public content, verify the whole content lifecycle before implementing: authoring state, persisted value, edit reload, public render, and machine-readable metadata. Do not split those into separate fixes unless the user explicitly narrows the scope.
+
+## 2026-05-27 - Uploaded media rendered but was cropped by presentation defaults
+
+What happened:
+
+- A selected post image appeared in the public article, but the render forced a 16:9 crop and cut off meaningful parts of a square uploaded image.
+- The test only proved that an image element existed and pointed at the right URL.
+
+Why it happened:
+
+- I optimized for a polished hero-like frame before checking the actual user asset shape.
+- I treated "visible image" as the contract, when uploaded editorial media also needs faithful framing unless the UI explicitly offers cropping.
+
+What I should have done:
+
+- Inspect or reason about real uploaded image dimensions before choosing `object-cover` or a fixed aspect ratio.
+- Add a visual/layout assertion that protects against cropping, not only a source URL assertion.
+- Default uploaded article media to preserve original proportions; introduce cropping only as an explicit editing feature.
+
+Working rule:
+
+- For user-uploaded media, verify framing as well as presence. Unless there is a deliberate crop tool or fixed-format slot, preserve the asset's original aspect ratio and test against accidental `object-cover` or fixed-aspect crops.
