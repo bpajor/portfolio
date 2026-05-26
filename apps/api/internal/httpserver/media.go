@@ -109,6 +109,7 @@ func (s Server) adminUploadMedia(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := r.ParseMultipartForm(s.cfg.MediaMaxBytes); err != nil {
+		s.logger.Warn("parse media upload failed", "error", err, "content_length", r.ContentLength, "media_max_bytes", s.cfg.MediaMaxBytes)
 		writeError(w, http.StatusBadRequest, "media_upload_invalid", "Media upload is invalid.")
 		return
 	}
@@ -127,6 +128,7 @@ func (s Server) adminUploadMedia(w http.ResponseWriter, r *http.Request) {
 
 	data, err := io.ReadAll(io.LimitReader(file, s.cfg.MediaMaxBytes+1))
 	if err != nil {
+		s.logger.Warn("read media upload failed", "error", err, "content_length", r.ContentLength, "media_max_bytes", s.cfg.MediaMaxBytes)
 		writeError(w, http.StatusBadRequest, "media_upload_invalid", "Media upload is invalid.")
 		return
 	}
