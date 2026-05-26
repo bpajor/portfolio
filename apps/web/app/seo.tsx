@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { posts, profile, projects, type BlogPost, type Project } from "./site-data";
-import { SeoBlogPost } from "./blog/blog-model";
+import type { SeoBlogPost } from "./blog/blog-model";
 
 export const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 export const siteName = "Blazej Pajor";
@@ -17,7 +17,9 @@ export function pageMetadata({
   path,
   type = "website",
   publishedTime,
-  tags
+  tags,
+  imagePath,
+  imageAlt
 }: {
   title: string;
   description: string;
@@ -25,8 +27,12 @@ export function pageMetadata({
   type?: "website" | "article";
   publishedTime?: string;
   tags?: string[];
+  imagePath?: string;
+  imageAlt?: string;
 }): Metadata {
   const url = absoluteUrl(path);
+  const imageUrl = absoluteUrl(imagePath ?? profile.image);
+  const alt = imageAlt ?? profile.name;
   return {
     title,
     description,
@@ -41,13 +47,13 @@ export function pageMetadata({
       type,
       publishedTime,
       tags,
-      images: [{ url: absoluteUrl(profile.image), width: 1200, height: 630, alt: profile.name }]
+      images: [{ url: imageUrl, width: 1200, height: 630, alt }]
     },
     twitter: {
       card: "summary_large_image",
       title,
       description,
-      images: [absoluteUrl(profile.image)]
+      images: [imageUrl]
     }
   };
 }
@@ -146,7 +152,11 @@ export function projectJsonLd(project: Project) {
   };
 }
 
-export function blogPostJsonLd(post: BlogPost) {
+function postImagePath(post: BlogPost | SeoBlogPost) {
+  return "ogImageId" in post && post.ogImageId ? `/api/media/${post.ogImageId}` : profile.image;
+}
+
+export function blogPostJsonLd(post: BlogPost | SeoBlogPost) {
   return {
     "@context": "https://schema.org",
     "@type": "BlogPosting",
@@ -156,7 +166,7 @@ export function blogPostJsonLd(post: BlogPost) {
     datePublished: post.publishedAt,
     dateModified: post.publishedAt,
     url: absoluteUrl(`/blog/${post.slug}`),
-    image: absoluteUrl(profile.image),
+    image: absoluteUrl(postImagePath(post)),
     author: {
       "@id": absoluteUrl("/#person")
     },

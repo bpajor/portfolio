@@ -29,6 +29,22 @@ describe("SEO and GEO helpers", () => {
     expect(metadata.twitter).toMatchObject({ card: "summary_large_image" });
   });
 
+  it("uses article-specific media for metadata images", () => {
+    const metadata = pageMetadata({
+      title: "Article",
+      description: "Article with selected media.",
+      path: "/blog/article",
+      type: "article",
+      imagePath: "/api/media/media-hero",
+      imageAlt: "Article"
+    });
+
+    expect(metadata.openGraph?.images).toEqual([
+      { url: "http://localhost:3000/api/media/media-hero", width: 1200, height: 630, alt: "Article" }
+    ]);
+    expect(metadata.twitter).toMatchObject({ images: ["http://localhost:3000/api/media/media-hero"] });
+  });
+
   it("escapes JSON-LD script content", () => {
     const html = renderToStaticMarkup(<JsonLd data={{ name: "<script>alert(1)</script>" }} />);
 
@@ -81,6 +97,13 @@ describe("SEO and GEO helpers", () => {
     expect(jsonLd.headline).toBe(post.title);
     expect(jsonLd.articleBody).toContain(post.sections[0].heading);
     expect(jsonLd.keywords).toBe(post.tags.join(", "));
+  });
+
+  it("builds article JSON-LD with selected post media when available", () => {
+    const post = { ...posts[0], ogImageId: "media-hero" };
+    const jsonLd = blogPostJsonLd(post);
+
+    expect(jsonLd.image).toBe("http://localhost:3000/api/media/media-hero");
   });
 
   it("builds ordered breadcrumbs", () => {

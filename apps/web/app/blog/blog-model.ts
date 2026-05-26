@@ -10,6 +10,7 @@ export type PublicPost = {
   publishedAt?: string;
   seoTitle?: string;
   seoDescription?: string;
+  ogImageId?: string | null;
   tags: string[];
 };
 
@@ -23,6 +24,7 @@ export type SeoBlogPost = BlogPost & {
   contentMarkdown?: string;
   seoTitle?: string;
   seoDescription?: string;
+  ogImageId?: string | null;
 };
 
 export function staticPostToPublicPost(post: BlogPost): PublicPost {
@@ -52,7 +54,8 @@ export function publicPostToBlogPost(post: PublicPost): SeoBlogPost {
     tags: post.tags,
     sections: sections.length > 0 ? sections : [{ heading: "Article", body: post.excerpt }],
     seoTitle: post.seoTitle,
-    seoDescription: post.seoDescription
+    seoDescription: post.seoDescription,
+    ogImageId: post.ogImageId
   };
 }
 
@@ -67,6 +70,7 @@ export function blogPostToPublicPost(post: SeoBlogPost): PublicPost {
     publishedAt: post.publishedAt,
     seoTitle: post.seoTitle,
     seoDescription: post.seoDescription,
+    ogImageId: post.ogImageId,
     tags: post.tags
   };
 }
