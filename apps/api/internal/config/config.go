@@ -41,11 +41,11 @@ func Load() Config {
 		PrivacyHashSecret:  env("SESSION_SECRET", "development"),
 		TurnstileSecretKey: env("TURNSTILE_SECRET_KEY", ""),
 		TurnstileVerifyURL: env("TURNSTILE_VERIFY_URL", "https://challenges.cloudflare.com/turnstile/v0/siteverify"),
-		ReadHeaderTimeout:  5 * time.Second,
-		ReadTimeout:        15 * time.Second,
-		WriteTimeout:       15 * time.Second,
-		IdleTimeout:        60 * time.Second,
-		ShutdownTimeout:    10 * time.Second,
+		ReadHeaderTimeout:  durationSecondsEnv("API_READ_HEADER_TIMEOUT_SECONDS", 5*time.Second),
+		ReadTimeout:        durationSecondsEnv("API_READ_TIMEOUT_SECONDS", 120*time.Second),
+		WriteTimeout:       durationSecondsEnv("API_WRITE_TIMEOUT_SECONDS", 120*time.Second),
+		IdleTimeout:        durationSecondsEnv("API_IDLE_TIMEOUT_SECONDS", 60*time.Second),
+		ShutdownTimeout:    durationSecondsEnv("API_SHUTDOWN_TIMEOUT_SECONDS", 10*time.Second),
 	}
 }
 
@@ -88,6 +88,19 @@ func int64Env(key string, fallback int64) int64 {
 		return fallback
 	}
 	return parsed
+}
+
+func durationSecondsEnv(key string, fallback time.Duration) time.Duration {
+	value := os.Getenv(key)
+	if value == "" {
+		return fallback
+	}
+
+	parsed, err := strconv.ParseInt(value, 10, 64)
+	if err != nil || parsed <= 0 {
+		return fallback
+	}
+	return time.Duration(parsed) * time.Second
 }
 
 func boolEnv(key string, fallback bool) bool {

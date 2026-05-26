@@ -21,6 +21,27 @@ Working rule:
 
 - Any feature that writes to runtime storage must verify the full storage contract: configured path, mounted volume, container user, ownership, permissions, persistence, and failure response. For non-root containers, add an explicit init or deploy step that makes writable volumes writable before the service starts.
 
+## 2026-05-26 - Upload path hit production server timeout through a slow preview tunnel
+
+What happened:
+
+- A sub-1 MB media upload through Cloud Shell preview returned `media_upload_invalid`.
+- Earlier API logs showed the same endpoint returning after about 15 seconds, which matched the API server `ReadTimeout`.
+
+Why it happened:
+
+- I validated upload size and MIME behavior but did not account for slow tunnels and browser-to-proxy-to-API transfer time.
+- The server timeout was tuned for normal JSON requests, not multipart uploads over a preview tunnel.
+
+What I should have done:
+
+- Compare the failing request duration with server/proxy timeout settings before assuming request validation failed.
+- Make runtime timeouts configurable and document why upload paths need a larger budget than normal admin JSON mutations.
+
+Working rule:
+
+- When a request fails only in deployed or tunneled environments, compare response status, request duration, content length, proxy logs, and application timeout settings before changing validation logic. Slow transport is part of the runtime contract.
+
 ## 2026-05-08/16 - Turnstile worked in the browser but API still failed verification
 
 What happened:

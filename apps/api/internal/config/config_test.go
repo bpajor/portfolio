@@ -3,6 +3,7 @@ package config
 import (
 	"reflect"
 	"testing"
+	"time"
 )
 
 func TestLoadDefaults(t *testing.T) {
@@ -15,6 +16,11 @@ func TestLoadDefaults(t *testing.T) {
 	t.Setenv("API_COOKIE_SECURE", "")
 	t.Setenv("SESSION_SECRET", "")
 	t.Setenv("TURNSTILE_VERIFY_URL", "")
+	t.Setenv("API_READ_HEADER_TIMEOUT_SECONDS", "")
+	t.Setenv("API_READ_TIMEOUT_SECONDS", "")
+	t.Setenv("API_WRITE_TIMEOUT_SECONDS", "")
+	t.Setenv("API_IDLE_TIMEOUT_SECONDS", "")
+	t.Setenv("API_SHUTDOWN_TIMEOUT_SECONDS", "")
 
 	cfg := Load()
 
@@ -39,6 +45,12 @@ func TestLoadDefaults(t *testing.T) {
 	if cfg.PrivacyHashSecret != "development" {
 		t.Fatalf("PrivacyHashSecret = %q, want development", cfg.PrivacyHashSecret)
 	}
+	if cfg.ReadTimeout != 120*time.Second {
+		t.Fatalf("ReadTimeout = %s, want 120s", cfg.ReadTimeout)
+	}
+	if cfg.WriteTimeout != 120*time.Second {
+		t.Fatalf("WriteTimeout = %s, want 120s", cfg.WriteTimeout)
+	}
 }
 
 func TestLoadParsesEnvironment(t *testing.T) {
@@ -51,6 +63,11 @@ func TestLoadParsesEnvironment(t *testing.T) {
 	t.Setenv("API_COOKIE_SECURE", "false")
 	t.Setenv("SESSION_SECRET", "secret")
 	t.Setenv("TURNSTILE_SECRET_KEY", "turnstile")
+	t.Setenv("API_READ_HEADER_TIMEOUT_SECONDS", "7")
+	t.Setenv("API_READ_TIMEOUT_SECONDS", "90")
+	t.Setenv("API_WRITE_TIMEOUT_SECONDS", "91")
+	t.Setenv("API_IDLE_TIMEOUT_SECONDS", "92")
+	t.Setenv("API_SHUTDOWN_TIMEOUT_SECONDS", "93")
 
 	cfg := Load()
 
@@ -82,6 +99,21 @@ func TestLoadParsesEnvironment(t *testing.T) {
 	if cfg.TurnstileSecretKey != "turnstile" {
 		t.Fatalf("TurnstileSecretKey = %q, want turnstile", cfg.TurnstileSecretKey)
 	}
+	if cfg.ReadHeaderTimeout != 7*time.Second {
+		t.Fatalf("ReadHeaderTimeout = %s, want 7s", cfg.ReadHeaderTimeout)
+	}
+	if cfg.ReadTimeout != 90*time.Second {
+		t.Fatalf("ReadTimeout = %s, want 90s", cfg.ReadTimeout)
+	}
+	if cfg.WriteTimeout != 91*time.Second {
+		t.Fatalf("WriteTimeout = %s, want 91s", cfg.WriteTimeout)
+	}
+	if cfg.IdleTimeout != 92*time.Second {
+		t.Fatalf("IdleTimeout = %s, want 92s", cfg.IdleTimeout)
+	}
+	if cfg.ShutdownTimeout != 93*time.Second {
+		t.Fatalf("ShutdownTimeout = %s, want 93s", cfg.ShutdownTimeout)
+	}
 }
 
 func TestLoadFallsBackOnInvalidValues(t *testing.T) {
@@ -89,6 +121,7 @@ func TestLoadFallsBackOnInvalidValues(t *testing.T) {
 	t.Setenv("API_BODY_LIMIT_BYTES", "-1")
 	t.Setenv("MEDIA_MAX_BYTES", "-1")
 	t.Setenv("API_COOKIE_SECURE", "definitely")
+	t.Setenv("API_READ_TIMEOUT_SECONDS", "-1")
 
 	cfg := Load()
 
@@ -103,5 +136,8 @@ func TestLoadFallsBackOnInvalidValues(t *testing.T) {
 	}
 	if !cfg.CookieSecure {
 		t.Fatal("CookieSecure should fall back to true")
+	}
+	if cfg.ReadTimeout != 120*time.Second {
+		t.Fatalf("ReadTimeout = %s, want default", cfg.ReadTimeout)
 	}
 }
