@@ -87,3 +87,24 @@ What I should have done:
 Working rule:
 
 - Live tests should encode the real API contract. If the assertion involves status codes, response body shape, cookies, redirects, or auth state, confirm it against the backend implementation or contract before pushing.
+
+## 2026-05-26 - Live E2E mixed HTTPS staging behavior with an HTTP localhost tunnel
+
+What happened:
+
+- The deployed login endpoint returned `200` and a session cookie, but the browser stayed on `/admin/login` in CI.
+- CI was reaching staging through `http://127.0.0.1:3000`, while the deployed API correctly marked the admin session cookie as `Secure`.
+
+Why it happened:
+
+- I treated the local tunnel URL as equivalent to the real HTTPS staging origin.
+- The test expected browser auth state to work over a transport where Secure cookies cannot be stored.
+
+What I should have done:
+
+- Separate the API login contract from browser cookie persistence when the test target is an HTTP tunnel.
+- Keep the HTTPS behavior covered for real preview origins, but avoid weakening runtime cookie security to satisfy a tunnel-specific assertion.
+
+Working rule:
+
+- Live E2E through tunnels must model browser security rules for the tunnel origin. If the tunnel is HTTP but production/staging uses Secure cookies, assert the API contract separately from browser navigation, or run that browser-auth assertion against HTTPS.

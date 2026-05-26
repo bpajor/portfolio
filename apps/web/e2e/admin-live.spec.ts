@@ -5,6 +5,8 @@ const adminEmail = process.env.E2E_ADMIN_EMAIL;
 const adminPassword = process.env.E2E_ADMIN_PASSWORD;
 const baseURL = process.env.E2E_BASE_URL ?? "http://127.0.0.1:3000";
 const baseOrigin = new URL(baseURL).origin;
+const baseHost = new URL(baseURL).hostname;
+const baseSupportsSecureCookies = baseURL.startsWith("https://") || baseHost === "localhost";
 const cloudShellLikeOrigin =
   process.env.E2E_CLOUD_SHELL_ORIGIN ??
   "https://3000-cs-e2e.cs-europe-west4-bhnf.cloudshell.dev";
@@ -45,6 +47,13 @@ test.describe("admin live staging", () => {
     const loginBody = JSON.parse(loginBodyText) as { email: string; role: string };
     expect(loginBody.email.toLowerCase()).toBe((adminEmail ?? "").toLowerCase());
     expect(loginBody.role).toBe("admin");
+
+    if (!baseSupportsSecureCookies) {
+      expect(loginResponse.headers()["set-cookie"]).toContain("Secure");
+      await expect(page).toHaveURL(/\/admin\/login$/);
+      return;
+    }
+
     await expect(page).toHaveURL(/\/admin$/);
     await expect(page.getByRole("heading", { name: "Publishing dashboard", exact: true })).toBeVisible();
   });
