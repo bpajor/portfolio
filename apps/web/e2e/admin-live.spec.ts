@@ -49,7 +49,6 @@ test.describe("admin live staging", () => {
     expect(loginBody.role).toBe("admin");
 
     if (!baseSupportsSecureCookies) {
-      expect(loginResponse.headers()["set-cookie"]).toContain("Secure");
       await expect(page).toHaveURL(/\/admin\/login$/);
       return;
     }

@@ -4,6 +4,11 @@ You are implementing the portfolio-blog-mcp-platform project.
 
 Each iteration:
 
+0. Run the lessons gate before doing task work:
+   - Read `.agent/lessons-learned.md`.
+   - Open every relevant `.agent/lessons/*.md` topic file for the task type.
+   - In the first user-facing work update, name the lesson files read and the specific working rules that will guide the task.
+   - If the task touches CI, deploy, PRs, infrastructure, staging, production, auth, admin, or runtime config, also establish current state before editing: branch, latest `main`, commit under test, environment, and whether the relevant PR has already merged or closed.
 1. Read `.agent/lessons-learned.md` first, then open any relevant topic files under `.agent/lessons/`, and apply their working rules before making implementation, CI, deploy, infrastructure, or admin-flow decisions.
 2. Read `.agent/prd/SUMMARY.md`.
 3. Read `.agent/tasks.json`.
@@ -18,6 +23,7 @@ Each iteration:
 Tooling rule:
 
 - When a required local command is unavailable but an appropriate Docker image is present, run the formatter, test, or validation command through Docker instead of blocking on host setup. Prefer existing local images and keep the command scoped to the repository.
+- The lessons gate is not optional documentation. If you notice you started implementation without it, stop, read the lessons, state the relevant rules, and re-check whether the current approach should change.
 
 Project constraints:
 

@@ -110,6 +110,30 @@ Working rule:
 
 - Before acting on any CI, deploy, or user-reported failure, establish current state first: branch, latest main, commit under test, environment, and whether the failing PR has already merged. Fix the current system, not a stale snapshot.
 
+## 2026-05-26 - Follow-up commit was pushed to an already merged PR branch
+
+What happened:
+
+- A follow-up fix was pushed to `codex/admin-media-crud` after the related PRs had already merged and closed.
+- The branch received the commit, but no open PR was visible because GitHub had already closed the PRs for that head branch.
+- A fresh branch from current `main` had to be created and the missing commit cherry-picked into a new PR.
+
+Why it happened:
+
+- I treated a pushed branch as equivalent to an open review surface.
+- I did not apply the existing stale-branch lesson before acting, even though the task was clearly PR/CI/deploy related.
+- I checked local branch cleanliness but not the remote PR state and merge state before pushing.
+
+What I should have done:
+
+- Before any follow-up fix, check whether the prior PR is open, closed, or merged.
+- If the prior PR is merged, switch to current `main`, pull, create a fresh branch, and apply only the missing change.
+- In the work update, explicitly state the relevant lesson and current-state facts before pushing.
+
+Working rule:
+
+- Never assume that pushing to an existing remote branch creates review visibility. For follow-up work after a merge, always start from current `main` on a new branch unless an open PR for that exact branch is confirmed.
+
 ## 2026-05-03 - GitHub environment protection assumptions were wrong
 
 What happened:

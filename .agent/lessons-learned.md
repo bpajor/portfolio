@@ -4,6 +4,7 @@ Read this index before making implementation, CI, deployment, infrastructure, au
 
 ## Core Rules
 
+- Lessons are a pre-flight gate, not an archive. At task start, read this index and the relevant topic files, then state which rules are guiding the work.
 - Verify current state before acting: branch, latest `main`, commit under test, environment, and whether the failing PR has already merged.
 - When behavior crosses boundaries, identify the boundary first: browser/server, build/runtime, CI/VM, proxy/app, GitHub/GCP/Cloudflare, or admin/public.
 - Local mocks are not proof for environment-sensitive behavior. Add a check at the same boundary where production can fail.

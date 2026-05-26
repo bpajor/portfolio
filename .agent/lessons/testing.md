@@ -104,6 +104,7 @@ What I should have done:
 
 - Separate the API login contract from browser cookie persistence when the test target is an HTTP tunnel.
 - Keep the HTTPS behavior covered for real preview origins, but avoid weakening runtime cookie security to satisfy a tunnel-specific assertion.
+- Avoid asserting `Set-Cookie` from a browser page response; browser-facing response APIs may not expose that header. Use API-level checks for header details, and page-level checks for browser-visible effects.
 
 Working rule:
 
