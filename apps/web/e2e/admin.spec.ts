@@ -182,6 +182,63 @@ test.describe("admin surface", () => {
     });
   });
 
+  test("keeps the selected Open Graph image when editing a post", async ({ page }) => {
+    await signInByCookie(page);
+
+    let releaseMedia!: () => void;
+    const mediaMayLoad = new Promise<void>((resolve) => {
+      releaseMedia = resolve;
+    });
+
+    await page.route("**/api/admin/posts/post-123", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          id: "post-123",
+          slug: "admin-e2e-post",
+          title: "Admin E2E Post",
+          excerpt: "Published from the admin panel.",
+          contentMarkdown: "## Intro\n\nPublished body.",
+          status: "published",
+          publishedAt: "2026-05-05T10:00:00Z",
+          seoTitle: "Admin E2E Post",
+          seoDescription: "Published from the admin panel.",
+          ogImageId: "media-hero",
+          tags: ["Admin", "E2E"],
+          createdAt: "2026-05-05T10:00:00Z",
+          updatedAt: "2026-05-05T10:00:00Z"
+        })
+      });
+    });
+    await page.route("**/api/admin/media", async (route) => {
+      await mediaMayLoad;
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify([
+          {
+            id: "media-hero",
+            filename: "hero.png",
+            mimeType: "image/png",
+            sizeBytes: 1536,
+            altText: "Admin E2E hero image",
+            url: "/api/media/media-hero",
+            createdAt: "2026-05-05T10:00:00Z"
+          }
+        ])
+      });
+    });
+
+    await page.goto("/admin/posts/post-123", { waitUntil: "domcontentloaded" });
+    const imageSelect = page.getByLabel("Open Graph image");
+    await expect(imageSelect).toHaveValue("media-hero");
+
+    releaseMedia();
+    await expect(imageSelect).toContainText("hero.png - Admin E2E hero image");
+    await expect(imageSelect).toHaveValue("media-hero");
+  });
+
   test("uploads edits and deletes media from the admin library", async ({ page }) => {
     await signInByCookie(page);
 

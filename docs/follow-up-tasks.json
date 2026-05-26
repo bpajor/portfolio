@@ -241,6 +241,35 @@
         "Deployment script validation for image tag inputs.",
         "Staging rollback test using a previous image tag."
       ]
+    },
+    {
+      "id": "mcp-end-to-end-validation",
+      "title": "Test MCP behavior end to end",
+      "status": "pending",
+      "priority": "high",
+      "goal": "Verify that the deployed MCP service works for real clients while preserving token protection and tool boundaries.",
+      "scope": [
+        "Validate anonymous /mcp requests are rejected.",
+        "Validate read-only MCP token can list and call public read tools.",
+        "Validate admin MCP token can call only intended admin-scoped tools.",
+        "Verify Caddy routes /mcp correctly on staging and production.",
+        "Exercise MCP against real deployed site data after staging deploy.",
+        "Document a repeatable manual MCP smoke-test procedure."
+      ],
+      "acceptanceCriteria": [
+        "Staging /mcp returns 401 without a bearer token.",
+        "A valid read-only bearer token can initialize MCP and call expected read tools.",
+        "Read-only token cannot call admin-only tools.",
+        "Admin token can call expected admin tools and all write-capable calls remain audited or intentionally unavailable.",
+        "Production /mcp protection is verified before considering MCP public exposure.",
+        "The test procedure is documented and can be run from CI or a trusted local machine."
+      ],
+      "tests": [
+        "Go MCP unit and integration tests for tool contracts.",
+        "Staging MCP smoke test using the deployed /mcp endpoint.",
+        "Negative auth tests for missing, invalid, and read-only tokens.",
+        "Manual verification checklist for staging and production."
+      ]
     }
   ]
 }

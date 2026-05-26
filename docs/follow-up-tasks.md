@@ -129,3 +129,35 @@ Acceptance criteria:
 - Deploy logs show image tags and digests for each service.
 - Retrying a failed deploy does not require rebuilding images if tags already exist.
 - Rollback to a previous image tag is documented and tested on staging.
+
+## 5. Test MCP Behavior End to End
+
+Status: Pending.
+
+Problem:
+
+- MCP is implemented and protected, but we still need an explicit deployed-stack validation pass.
+- Unit and integration tests are useful, but they do not prove that the real `/mcp` route, Caddy, bearer tokens, staging data, and production protection all work together.
+
+Goal:
+
+- Verify MCP behavior as a real client would see it.
+- Confirm that anonymous access is rejected, read-only tokens can use only read tools, and admin-scoped behavior remains intentional and safe.
+
+Suggested approach:
+
+- Run a staging smoke test against the deployed `/mcp` endpoint.
+- Check missing/invalid bearer token behavior.
+- Check valid read-only token initialization, tool listing, and representative read tool calls.
+- Check that read-only tokens cannot call admin-only tools.
+- Check the admin token only against intended admin MCP operations.
+- Document a repeatable manual procedure and decide which parts should become CI.
+
+Acceptance criteria:
+
+- Staging `/mcp` returns `401` without a bearer token.
+- Valid read-only token can initialize MCP and call expected read tools.
+- Read-only token cannot call admin-only tools.
+- Admin token behavior is verified only for intended tool scope.
+- Production `/mcp` protection is verified before any public MCP exposure decision.
+- The test procedure is documented enough to rerun after deploys.

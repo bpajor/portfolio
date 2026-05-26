@@ -28,6 +28,7 @@ describe("blog model", () => {
       publishedAt: "2026-05-16T12:00:00Z",
       seoTitle: "API SEO Post for crawlers",
       seoDescription: "A crawler-focused description.",
+      ogImageId: "media-hero",
       tags: ["SEO", "API"]
     });
 
@@ -37,6 +38,7 @@ describe("blog model", () => {
       excerpt: "An API-published article.",
       seoTitle: "API SEO Post for crawlers",
       seoDescription: "A crawler-focused description.",
+      ogImageId: "media-hero",
       tags: ["SEO", "API"]
     });
     expect(post.sections).toContainEqual({ heading: "Deep section", body: "Crawler-visible body." });

@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -82,6 +83,16 @@ export function BlogPostClient({ slug, initialPost }: { slug: string; initialPos
           </span>
         ))}
       </div>
+      {post.ogImageId ? (
+        <Image
+          src={apiUrl(`/media/${post.ogImageId}`)}
+          alt={post.title}
+          width={1200}
+          height={675}
+          unoptimized
+          className="mt-8 aspect-[16/9] w-full rounded-md border border-white/10 object-cover"
+        />
+      ) : null}
 
       <div className="mt-10 space-y-8 border-t border-white/10 pt-8">
         {sections.map((section) => (

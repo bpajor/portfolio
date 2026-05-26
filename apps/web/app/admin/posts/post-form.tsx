@@ -23,6 +23,7 @@ export function PostForm({ post }: PostFormProps) {
   const [message, setMessage] = useState("");
   const [isSaving, setSaving] = useState(false);
   const [media, setMedia] = useState<AdminMediaItem[]>([]);
+  const [selectedOgImageId, setSelectedOgImageId] = useState(post?.ogImageId ?? "");
 
   useEffect(() => {
     let ignore = false;
@@ -129,9 +130,14 @@ export function PostForm({ post }: PostFormProps) {
 
       <label className="grid gap-2 text-sm text-slate-300">
         Open Graph image
-        <select name="ogImageId" defaultValue={post?.ogImageId ?? ""} className="h-11 rounded-md border border-white/10 bg-slate-950 px-3 text-slate-100 outline-none focus:border-sky-300/50">
+        <select
+          name="ogImageId"
+          value={selectedOgImageId}
+          onChange={(event) => setSelectedOgImageId(event.target.value)}
+          className="h-11 rounded-md border border-white/10 bg-slate-950 px-3 text-slate-100 outline-none focus:border-sky-300/50"
+        >
           <option value="">No image selected</option>
-          {post?.ogImageId && !media.some((item) => item.id === post.ogImageId) ? <option value={post.ogImageId}>Current image</option> : null}
+          {selectedOgImageId && !media.some((item) => item.id === selectedOgImageId) ? <option value={selectedOgImageId}>Current image</option> : null}
           {media.map((item) => (
             <option key={item.id} value={item.id}>{item.filename} - {item.altText}</option>
           ))}

@@ -1,6 +1,10 @@
 import { expect, test } from "@playwright/test";
 
 const runsAgainstDeployedApp = Boolean(process.env.E2E_BASE_URL);
+const pngPixel = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=",
+  "base64"
+);
 
 test.describe("public website", () => {
   test("renders core public routes", async ({ page }) => {
@@ -111,6 +115,7 @@ test.describe("public website", () => {
       contentMarkdown: "## Intro\n\nPublished body.",
       status: "published",
       publishedAt: "2026-05-05T10:00:00Z",
+      ogImageId: "media-hero",
       tags: ["Admin", "E2E"],
       createdAt: "2026-05-05T10:00:00Z",
       updatedAt: "2026-05-05T10:00:00Z"
@@ -125,12 +130,16 @@ test.describe("public website", () => {
     await page.route("**/api/posts/admin-e2e-post/comments", async (route) => {
       await route.fulfill({ status: 200, contentType: "application/json", body: "[]" });
     });
+    await page.route("**/api/media/media-hero", async (route) => {
+      await route.fulfill({ status: 200, contentType: "image/png", body: pngPixel });
+    });
 
     await page.goto("/blog");
     await expect(page.getByRole("link", { name: /admin e2e post/i })).toBeVisible();
 
     await page.goto("/blog/admin-e2e-post");
     await expect(page.getByRole("heading", { name: "Admin E2E Post" })).toBeVisible();
+    await expect(page.getByRole("img", { name: "Admin E2E Post" })).toHaveAttribute("src", /\/api\/media\/media-hero/);
     await expect(page.getByText("Published body.")).toBeVisible();
   });
 

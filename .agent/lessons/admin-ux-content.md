@@ -62,3 +62,25 @@ What I should have done:
 Working rule:
 
 - Keep smoke tests about stable contracts and dedicated content tests about controlled content. Do not let mutable editorial data decide whether basic navigation is healthy.
+
+## 2026-05-27 - Post media was treated as two separate bugs instead of one content contract
+
+What happened:
+
+- A selected post image persisted enough to appear in the admin dropdown flow, but it was not rendered in the public article and was easy to lose when the media list loaded asynchronously.
+- I initially focused on the edit dropdown symptom before immediately treating public rendering as an integral part of the same feature.
+
+Why it happened:
+
+- I reasoned from individual UI symptoms instead of first naming the full lifecycle contract: upload media, select it on a post, save it, reload the editor, render it publicly, and expose it to SEO/GEO metadata.
+- The tests I reached for were too narrow at first, so they risked proving only that one screen behaved better while the user-facing feature stayed incomplete.
+
+What I should have done:
+
+- Start by writing the end-to-end contract in one sentence before changing code.
+- Add tests at every user-visible boundary touched by the contract: admin form state, saved post data, public article rendering, and metadata when relevant.
+- Treat missing public display as part of the original feature, not as a follow-up polish task.
+
+Working rule:
+
+- When a feature moves data from admin input to public content, verify the whole content lifecycle before implementing: authoring state, persisted value, edit reload, public render, and machine-readable metadata. Do not split those into separate fixes unless the user explicitly narrows the scope.
