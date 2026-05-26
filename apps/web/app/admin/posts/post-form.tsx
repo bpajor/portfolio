@@ -78,6 +78,7 @@ export function PostForm({ post }: PostFormProps) {
     setMessage(successMessages[status]);
     if (!post) {
       router.push(`/admin/posts/${saved.id}`);
+      return;
     }
     router.refresh();
   }
