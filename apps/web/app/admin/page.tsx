@@ -2,13 +2,12 @@ import Link from "next/link";
 import { AdminHeader, AdminShell, Panel } from "./_components/admin-shell";
 import { AdminStats } from "./admin-stats";
 import { RecentWriting } from "./recent-writing";
-import { projects } from "../site-data";
 
 export default function AdminDashboardPage() {
   return (
     <AdminShell>
       <AdminHeader title="Publishing dashboard" body="A compact control surface for posts, portfolio projects, media, comments, and site settings." />
-      <AdminStats featuredProjectsCount={projects.length} />
+      <AdminStats />
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_320px]">
         <Panel>

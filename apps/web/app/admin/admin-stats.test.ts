@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { countPendingComments, countPublishedPosts } from "./admin-stats";
+import { countFeaturedProjects, countPendingComments, countPublishedPosts } from "./admin-stats";
 
 describe("admin stats", () => {
   it("counts only published posts", () => {
@@ -22,5 +22,9 @@ describe("admin stats", () => {
         { status: "spam" }
       ])
     ).toBe(2);
+  });
+
+  it("counts only featured projects", () => {
+    expect(countFeaturedProjects([{ isFeatured: true }, { isFeatured: false }, { isFeatured: true }])).toBe(2);
   });
 });

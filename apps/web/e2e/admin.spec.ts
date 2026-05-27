@@ -322,6 +322,89 @@ test.describe("admin surface", () => {
     expect(deleteRequested).toBe(true);
   });
 
+  test("creates edits and archives a portfolio project", async ({ page }) => {
+    await signInByCookie(page);
+
+    let projects: Array<Record<string, unknown>> = [];
+    let createPayload: Record<string, unknown> | null = null;
+    let updatePayload: Record<string, unknown> | null = null;
+
+    await page.route("**/api/admin/projects", async (route) => {
+      if (route.request().method() === "GET") {
+        await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(projects) });
+        return;
+      }
+      if (route.request().method() === "POST") {
+        createPayload = route.request().postDataJSON() as Record<string, unknown>;
+        projects = [
+          {
+            id: "project-123",
+            ...createPayload,
+            createdAt: "2026-05-27T10:00:00Z",
+            updatedAt: "2026-05-27T10:00:00Z"
+          }
+        ];
+        await route.fulfill({ status: 201, contentType: "application/json", body: JSON.stringify(projects[0]) });
+        return;
+      }
+      await route.fallback();
+    });
+
+    await page.route("**/api/admin/projects/project-123", async (route) => {
+      if (route.request().method() === "GET") {
+        await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(projects[0]) });
+        return;
+      }
+      if (route.request().method() === "PUT") {
+        updatePayload = route.request().postDataJSON() as Record<string, unknown>;
+        projects[0] = {
+          id: "project-123",
+          ...updatePayload,
+          createdAt: "2026-05-27T10:00:00Z",
+          updatedAt: "2026-05-27T10:05:00Z"
+        };
+        await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(projects[0]) });
+        return;
+      }
+      await route.fallback();
+    });
+
+    await page.goto("/admin/projects");
+    await page.getByRole("link", { name: "New project" }).click();
+    await page.getByRole("textbox", { name: "Title", exact: true }).fill("Admin Project CRUD");
+    await page.getByLabel("Slug").fill("admin-project-crud");
+    await page.getByLabel("Eyebrow").fill("Portfolio");
+    await page.getByLabel("Summary").fill("Created from admin.");
+    await page.getByLabel("Description").fill("A public project case study.");
+    await page.getByLabel("Problem").fill("Projects need editing.");
+    await page.getByLabel("Built").fill("Admin CRUD for projects.");
+    await page.getByLabel("Signals").fill("Admin, CRUD");
+    await page.getByLabel("Stack").fill("Go, Next.js");
+    await page.getByLabel("Repository URL").fill("https://github.com/bpajor/portfolio");
+    await page.getByLabel("Demo URL").fill("https://bpajor.dev/projects/admin-project-crud");
+    await page.getByLabel("Sort order").fill("7");
+    await page.getByLabel("Featured").check();
+    await page.getByRole("button", { name: "Save project" }).click();
+
+    await expect(page).toHaveURL(/\/admin\/projects\/project-123/);
+    expect(createPayload).toMatchObject({
+      slug: "admin-project-crud",
+      title: "Admin Project CRUD",
+      signals: ["Admin", "CRUD"],
+      stack: ["Go", "Next.js"],
+      isFeatured: true
+    });
+
+    await page.getByRole("textbox", { name: "Summary" }).fill("Updated from admin.");
+    await page.getByRole("button", { name: "Archive" }).click();
+
+    await expect(page.getByText("Project archived.")).toBeVisible();
+    expect(updatePayload).toMatchObject({
+      summary: "Updated from admin.",
+      isFeatured: false
+    });
+  });
+
   test("edits an existing blog post through the admin form", async ({ page }) => {
     await signInByCookie(page);
 

@@ -179,14 +179,14 @@ export function blogPostJsonLd(post: BlogPost | SeoBlogPost) {
   };
 }
 
-export function publicRoutes(writingPosts: Array<BlogPost | SeoBlogPost> = posts) {
+export function publicRoutes(writingPosts: Array<BlogPost | SeoBlogPost> = posts, projectItems: Project[] = projects) {
   return [
     { path: "/", changeFrequency: "weekly" as const, priority: 1 },
     { path: "/about", changeFrequency: "monthly" as const, priority: 0.8 },
     { path: "/projects", changeFrequency: "weekly" as const, priority: 0.8 },
     { path: "/blog", changeFrequency: "weekly" as const, priority: 0.8 },
     { path: "/contact", changeFrequency: "monthly" as const, priority: 0.6 },
-    ...projects.map((project) => ({
+    ...projectItems.map((project) => ({
       path: `/projects/${project.slug}`,
       changeFrequency: "monthly" as const,
       priority: 0.7

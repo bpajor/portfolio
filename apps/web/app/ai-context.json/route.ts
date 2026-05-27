@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 import { absoluteUrl, defaultDescription, siteName } from "../seo";
-import { profile, projects } from "../site-data";
+import { profile } from "../site-data";
 import { getPublishedSeoPosts } from "../blog/server-posts";
+import { getSeoProjects } from "../projects/server-projects";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const posts = await getPublishedSeoPosts();
+  const [posts, projects] = await Promise.all([getPublishedSeoPosts(), getSeoProjects()]);
 
   return NextResponse.json({
     site: {

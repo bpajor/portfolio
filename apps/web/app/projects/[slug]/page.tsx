@@ -3,16 +3,17 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Github } from "lucide-react";
 import { SiteFrame } from "../../_components/site-frame";
-import { projects } from "../../site-data";
 import { JsonLd, breadcrumbJsonLd, pageMetadata, projectJsonLd } from "../../seo";
+import { getPublicProject, getSeoProject, getSeoProjects } from "../server-projects";
 
-export function generateStaticParams() {
+export async function generateStaticParams() {
+  const projects = await getSeoProjects();
   return projects.map((project) => ({ slug: project.slug }));
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
-  const project = projects.find((item) => item.slug === slug);
+  const project = await getSeoProject(slug);
   if (!project) {
     return {};
   }
@@ -25,16 +26,28 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 
 export default async function ProjectDetailPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const project = projects.find((item) => item.slug === slug);
+  const project = await getPublicProject(slug);
   if (!project) {
     notFound();
   }
+  const seoProject = {
+    slug: project.slug,
+    title: project.title,
+    eyebrow: project.eyebrow,
+    summary: project.summary,
+    description: project.description,
+    problem: project.problem,
+    built: project.built,
+    signals: project.signals,
+    stack: project.stack,
+    href: project.repoUrl
+  };
 
   return (
     <SiteFrame>
       <JsonLd
         data={[
-          projectJsonLd(project),
+          projectJsonLd(seoProject),
           breadcrumbJsonLd([
             { name: "Home", path: "/" },
             { name: "Projects", path: "/projects" },
@@ -66,10 +79,15 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
                 </span>
               ))}
             </div>
-            <a href={project.href} className="mt-5 inline-flex h-10 items-center gap-2 rounded-md bg-sky-300 px-4 text-sm font-semibold text-slate-950 hover:bg-sky-200">
+            <a href={project.repoUrl} className="mt-5 inline-flex h-10 items-center gap-2 rounded-md bg-sky-300 px-4 text-sm font-semibold text-slate-950 hover:bg-sky-200">
               <Github size={17} aria-hidden="true" />
               Repository
             </a>
+            {project.demoUrl ? (
+              <a href={project.demoUrl} className="mt-3 inline-flex h-10 items-center rounded-md border border-white/15 px-4 text-sm font-medium text-slate-200 hover:bg-white/5">
+                Demo
+              </a>
+            ) : null}
           </aside>
         </div>
 
