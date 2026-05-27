@@ -6,11 +6,17 @@ set -euo pipefail
 : "${RELEASE_IMAGE_REFS:=}"
 : "${DEPLOY_MODE:?DEPLOY_MODE is required}"
 : "${RUN_BACKUP:?RUN_BACKUP is required}"
-: "${EXPECTED_IMAGE_REVISION:?EXPECTED_IMAGE_REVISION is required}"
+: "${EXPECTED_IMAGE_REVISION:=}"
+: "${EXPECTED_IMAGE_REVISIONS:=}"
 : "${RELEASE_SERVICES:=web api mcp}"
 
 if [ -z "$RELEASE_IMAGE_ARCHIVE" ] && [ -z "$RELEASE_IMAGE_REFS" ]; then
   echo "ERROR: RELEASE_IMAGE_ARCHIVE or RELEASE_IMAGE_REFS is required" >&2
+  exit 1
+fi
+
+if [ -z "$EXPECTED_IMAGE_REVISIONS" ] && [ -z "$EXPECTED_IMAGE_REVISION" ]; then
+  echo "ERROR: EXPECTED_IMAGE_REVISIONS or EXPECTED_IMAGE_REVISION is required" >&2
   exit 1
 fi
 
@@ -39,6 +45,7 @@ if [ "${PORTFOLIO_DEPLOY_AS_USER:-}" != "1" ]; then
     DEPLOY_MODE="$DEPLOY_MODE" \
     RUN_BACKUP="$RUN_BACKUP" \
     EXPECTED_IMAGE_REVISION="$EXPECTED_IMAGE_REVISION" \
+    EXPECTED_IMAGE_REVISIONS="$EXPECTED_IMAGE_REVISIONS" \
     RELEASE_SERVICES="$RELEASE_SERVICES" \
     NEXT_PUBLIC_TURNSTILE_SITE_KEY="${NEXT_PUBLIC_TURNSTILE_SITE_KEY:-}" \
     TURNSTILE_SECRET_KEY="${TURNSTILE_SECRET_KEY:-}" \
@@ -85,12 +92,28 @@ require_revision() {
   kind="$1"
   name="$2"
   actual_revision="$3"
+  expected_revision="$4"
 
-  log "$kind $name revision=$actual_revision expected=$EXPECTED_IMAGE_REVISION"
-  if [ "$actual_revision" != "$EXPECTED_IMAGE_REVISION" ]; then
-    echo "ERROR: $kind $name revision $actual_revision does not match expected $EXPECTED_IMAGE_REVISION" >&2
+  log "$kind $name revision=$actual_revision expected=$expected_revision"
+  if [ "$actual_revision" != "$expected_revision" ]; then
+    echo "ERROR: $kind $name revision $actual_revision does not match expected $expected_revision" >&2
     exit 1
   fi
+}
+
+expected_revision_for_service() {
+  service="$1"
+  for entry in $EXPECTED_IMAGE_REVISIONS; do
+    case "$entry" in
+      "$service="*) printf '%s\n' "${entry#*=}"; return 0 ;;
+    esac
+  done
+  if [ -n "$EXPECTED_IMAGE_REVISION" ]; then
+    printf '%s\n' "$EXPECTED_IMAGE_REVISION"
+    return 0
+  fi
+  echo "ERROR: missing expected image revision for service '$service'" >&2
+  return 1
 }
 
 set_env_value() {
@@ -247,7 +270,7 @@ case "$release_transport" in
     for service in $release_services; do
       image="${compose_project}-${service}:latest"
       docker image inspect "$image" --format "$image {{.ID}} revision={{ index .Config.Labels \"org.opencontainers.image.revision\" }}"
-      require_revision image "$image" "$(image_revision "$image")"
+      require_revision image "$image" "$(image_revision "$image")" "$(expected_revision_for_service "$service")"
     done
     ;;
   registry)
@@ -261,10 +284,10 @@ case "$release_transport" in
       image="${compose_project}-${service}:latest"
       docker pull "$image_ref"
       docker image inspect "$image_ref" --format "$image_ref {{.ID}} revision={{ index .Config.Labels \"org.opencontainers.image.revision\" }}"
-      require_revision image "$image_ref" "$(image_revision "$image_ref")"
+      require_revision image "$image_ref" "$(image_revision "$image_ref")" "$(expected_revision_for_service "$service")"
       docker tag "$image_ref" "$image"
       docker image inspect "$image" --format "$image {{.ID}} revision={{ index .Config.Labels \"org.opencontainers.image.revision\" }}"
-      require_revision image "$image" "$(image_revision "$image")"
+      require_revision image "$image" "$(image_revision "$image")" "$(expected_revision_for_service "$service")"
     done
     ;;
   *)
@@ -282,7 +305,7 @@ log "Verifying running container revisions"
 for service in $release_services; do
   container="${compose_project}-${service}-1"
   docker inspect "$container" --format "$container {{.Image}} revision={{ index .Config.Labels \"org.opencontainers.image.revision\" }}"
-  require_revision container "$container" "$(container_revision "$container")"
+  require_revision container "$container" "$(container_revision "$container")" "$(expected_revision_for_service "$service")"
 done
 
 if [ -n "$restart_existing_services" ]; then

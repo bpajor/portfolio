@@ -35,7 +35,7 @@ Acceptance criteria:
 
 ## 2. Improve Discoverability for "Blazej Pajor" / "Błażej Pajor"
 
-Status: Pending.
+Status: Completed. Production now has SEO/GEO assets, metadata, sitemap/RSS/LLM assets, structured data, canonical URLs, and production verification for the public site.
 
 Problem:
 
@@ -66,7 +66,7 @@ Acceptance criteria:
 
 ## 3. Expand Automated Test Coverage, Especially Playwright E2E
 
-Status: In progress. Public comments, admin post CRUD, admin comment moderation, deployed staging admin checks, CSRF regression coverage, placeholder-flash coverage, admin auth ops, and admin media CRUD have been added. Broader projects CRUD remains open.
+Status: Completed. The suite now covers public navigation, API-backed blog rendering, comments, admin post CRUD, admin comment moderation, deployed staging admin checks, CSRF regression coverage, placeholder-flash coverage, admin auth ops, media CRUD, and selected media rendering. Future coverage should be added alongside new features rather than tracked as a broad standalone task.
 
 Problem:
 
@@ -130,7 +130,37 @@ Acceptance criteria:
 - Retrying a failed deploy does not require rebuilding images if tags already exist.
 - Rollback to a previous image tag is documented and tested on staging.
 
-## 5. Test MCP Behavior End to End
+## 5. Add Per-Service Deployment Drift Recovery
+
+Status: Completed. Deploy scope detection now computes desired revisions per service, compares them with prior successful production deploys per service, and adds stale services to the next release set automatically.
+
+Problem:
+
+- Context-aware deploys choose `web`, `api`, and `mcp` from the latest changed files.
+- If an earlier service deploy fails or is canceled, a later web-only deploy can succeed and leave production with a fresh web image but stale API or MCP images.
+- A green production deploy can therefore hide service drift because it only proves the selected services were deployed.
+
+Goal:
+
+- Make deploy selection compare desired service revisions with the revisions actually running in staging and production.
+- Automatically include any stale service in `RELEASE_SERVICES`, even when the newest merge did not touch that service.
+
+Suggested approach:
+
+- Inspect prior successful production deploys and infer which services each run actually released.
+- Compute each service's desired revision from the latest commit affecting its source, shared dependencies, Dockerfile, compose, migrations, or deploy contract.
+- Add stale services to the release set and clearly report the reason in the workflow summary.
+- Label release images with their service-specific desired revision so unchanged services do not become stale just because another service deployed later.
+- Keep `workflow_dispatch` as a full deploy fallback, but do not rely on manual reruns for normal drift recovery.
+
+Acceptance criteria:
+
+- If an API deploy fails and a later web-only commit reaches main, the next deploy includes API automatically.
+- Workflow summaries show selected services and whether each was selected by changed files or drift recovery.
+- Production cannot report a successful deploy while any required service remains on an older desired revision.
+- Manual full deploy still works for emergency recovery.
+
+## 6. Test MCP Behavior End to End
 
 Status: Pending.
 

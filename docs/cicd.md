@@ -84,6 +84,8 @@ When the deployment target is ready, set this repository variable:
 
 Manual `workflow_dispatch` runs are allowed even when `DEPLOY_ENABLED` is not `true`, so the first staging and production launch can be started intentionally from GitHub Actions.
 
+Deploy scope detection is service-aware. It still starts from changed files, but also computes desired revisions for `web`, `api`, and `mcp` and compares them with previous successful production deploys that actually released each service. If an earlier API or MCP deploy failed and a later web-only merge reaches `main`, the stale service is added back to `RELEASE_SERVICES` automatically. Release image labels use these service-specific desired revisions instead of one workflow SHA for every service.
+
 Before enabling automatic deploys, run the VM-side preflight checks:
 
 ```bash

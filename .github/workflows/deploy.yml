@@ -29,6 +29,10 @@ jobs:
       deploy_changed: ${{ steps.detect.outputs.deploy_changed }}
       release_services: ${{ steps.detect.outputs.release_services }}
       deployment_revision: ${{ steps.detect.outputs.deployment_revision }}
+      web_revision: ${{ steps.detect.outputs.web_revision }}
+      api_revision: ${{ steps.detect.outputs.api_revision }}
+      mcp_revision: ${{ steps.detect.outputs.mcp_revision }}
+      expected_image_revisions: ${{ steps.detect.outputs.expected_image_revisions }}
       recovery_deploy: ${{ steps.detect.outputs.recovery_deploy }}
       verify_required: ${{ steps.detect.outputs.verify_required }}
     steps:
@@ -41,193 +45,10 @@ jobs:
         id: detect
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_EVENT_BEFORE: ${{ github.event.before }}
         run: |
           set -euo pipefail
-
-          web=false
-          api=false
-          mcp=false
-          database=false
-          terraform=false
-          deploy=false
-          verify=false
-          recovery_deploy=false
-          recovery_reason=""
-
-          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
-            web=true
-            api=true
-            mcp=true
-            database=true
-            terraform=true
-            deploy=true
-            verify=true
-            printf '__manual_dispatch__\n' > changed-files.txt
-          else
-            base="${{ github.event.before }}"
-            if [ -z "$base" ] || printf '%s' "$base" | grep -Eq '^0+$'; then
-              base="$(git rev-parse HEAD^)"
-            fi
-            git diff --name-only "$base" "$GITHUB_SHA" > changed-files.txt
-
-            while IFS= read -r path; do
-              [ -n "$path" ] || continue
-              case "$path" in
-                apps/web/*|packages/*|package.json|package-lock.json|apps/web/Dockerfile)
-                  web=true
-                  verify=true
-                  ;;
-                apps/api/*|apps/api/Dockerfile)
-                  api=true
-                  verify=true
-                  ;;
-                apps/mcp/*|apps/mcp/Dockerfile)
-                  mcp=true
-                  verify=true
-                  ;;
-                db/*|scripts/test-migrations.*|compose.dev.yml)
-                  api=true
-                  mcp=true
-                  database=true
-                  verify=true
-                  ;;
-                deploy/compose/*|.dockerignore)
-                  deploy=true
-                  verify=true
-                  ;;
-                infra/gcp/*|.github/workflows/terraform-plan.yml)
-                  terraform=true
-                  verify=true
-                  ;;
-                .github/workflows/terraform-apply.yml)
-                  terraform=true
-                  verify=true
-                  ;;
-                .github/workflows/deploy.yml|.github/workflows/pr-ci.yml)
-                  deploy=true
-                  verify=true
-                  ;;
-              esac
-            done < changed-files.txt
-          fi
-
-          deployment_revision="$(git log -1 --format=%H -- \
-            apps/web \
-            packages \
-            package.json \
-            package-lock.json \
-            apps/web/Dockerfile \
-            apps/api \
-            apps/api/Dockerfile \
-            apps/mcp \
-            apps/mcp/Dockerfile \
-            db \
-            scripts \
-            compose.dev.yml \
-            deploy/compose \
-            .dockerignore \
-            2>/dev/null || true)"
-          deployment_revision="${deployment_revision:-$GITHUB_SHA}"
-
-          services=""
-          if [ "$web" = "true" ]; then services="${services:+$services }web"; fi
-          if [ "$api" = "true" ]; then services="${services:+$services }api"; fi
-          if [ "$mcp" = "true" ]; then services="${services:+$services }mcp"; fi
-
-          app_changed=false
-          if [ -n "$services" ]; then app_changed=true; fi
-
-          if [ "$GITHUB_EVENT_NAME" != "workflow_dispatch" ] && [ "$app_changed" != "true" ] && [ "$deploy" = "true" ]; then
-            latest_deployed_sha="$(
-              python - <<'PY'
-          import json
-          import os
-          import sys
-          import urllib.parse
-          import urllib.request
-
-          repo = os.environ["GITHUB_REPOSITORY"]
-          branch = os.environ.get("GITHUB_REF_NAME", "main")
-          token = os.environ["GITHUB_TOKEN"]
-
-          params = urllib.parse.urlencode({
-              "branch": branch,
-              "event": "push",
-              "status": "completed",
-              "per_page": "20",
-          })
-          url = f"https://api.github.com/repos/{repo}/actions/workflows/deploy.yml/runs?{params}"
-          headers = {
-              "Accept": "application/vnd.github+json",
-              "Authorization": f"Bearer {token}",
-              "X-GitHub-Api-Version": "2022-11-28",
-          }
-
-          try:
-              with urllib.request.urlopen(urllib.request.Request(url, headers=headers), timeout=20) as response:
-                  runs = json.load(response).get("workflow_runs", [])
-
-              for run in runs:
-                  jobs_url = f"{run['jobs_url']}?per_page=100"
-                  with urllib.request.urlopen(urllib.request.Request(jobs_url, headers=headers), timeout=20) as response:
-                      jobs = json.load(response).get("jobs", [])
-                  if any(job.get("name") == "Deploy staging" and job.get("conclusion") == "success" for job in jobs):
-                      print(run["head_sha"])
-                      break
-          except Exception as exc:
-              print(f"::warning::Could not inspect previous deploy runs: {exc}", file=sys.stderr)
-          PY
-            )"
-
-            if [ -n "$latest_deployed_sha" ] && git merge-base --is-ancestor "$deployment_revision" "$latest_deployed_sha"; then
-              recovery_reason="latest successful staging deploy already includes deployment revision $deployment_revision"
-            else
-              recovery_deploy=true
-              recovery_reason="no successful staging deploy includes deployment revision $deployment_revision"
-              web=true
-              api=true
-              mcp=true
-              database=true
-              verify=true
-              services="web api mcp"
-              app_changed=true
-            fi
-          fi
-
-          {
-            echo "app_changed=$app_changed"
-            echo "web_changed=$web"
-            echo "api_changed=$api"
-            echo "mcp_changed=$mcp"
-            echo "database_changed=$database"
-            echo "terraform_changed=$terraform"
-            echo "deploy_changed=$deploy"
-            echo "release_services=$services"
-            echo "deployment_revision=$deployment_revision"
-            echo "recovery_deploy=$recovery_deploy"
-            echo "verify_required=$verify"
-          } >> "$GITHUB_OUTPUT"
-
-          {
-            echo "## Deployment Scope"
-            echo
-            echo "- App changed: \`$app_changed\`"
-            echo "- Release services: \`${services:-none}\`"
-            echo "- Database checks: \`$database\`"
-            echo "- Terraform changed: \`$terraform\`"
-            echo "- Deploy scripts/workflows changed: \`$deploy\`"
-            echo "- Deployment revision: \`$deployment_revision\`"
-            echo "- Recovery deploy: \`$recovery_deploy\`"
-            if [ -n "$recovery_reason" ]; then
-              echo "- Recovery reason: $recovery_reason"
-            fi
-            echo "- Verify required: \`$verify\`"
-            echo
-            echo "Changed files:"
-            echo '```text'
-            cat changed-files.txt
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
+          python scripts/detect_deploy_scope.py
 
   verify:
     name: Verify before deployment
@@ -351,19 +172,32 @@ jobs:
           COMPOSE_PROJECT_NAME: portfolio-staging
           RELEASE_IMAGE_ARCHIVE: /tmp/portfolio-staging-images.tar.gz
           RELEASE_SERVICES: ${{ needs.changes.outputs.release_services }}
+          EXPECTED_IMAGE_REVISIONS: ${{ needs.changes.outputs.expected_image_revisions }}
         run: |
           set -euo pipefail
           archive_images=()
           release_image_refs=()
 
+          image_revision_for_service() {
+            service="$1"
+            for entry in $EXPECTED_IMAGE_REVISIONS; do
+              case "$entry" in
+                "$service="*) printf '%s\n' "${entry#*=}"; return 0 ;;
+              esac
+            done
+            echo "::error::Missing expected image revision for service '$service'"
+            return 1
+          }
+
           for service in $RELEASE_SERVICES; do
+            image_revision="$(image_revision_for_service "$service")"
             local_image="${COMPOSE_PROJECT_NAME}-${service}:latest"
             registry_image="${ARTIFACT_REGISTRY_DOCKER_REPOSITORY}/${COMPOSE_PROJECT_NAME}-${service}:${GITHUB_SHA}"
             case "$service" in
               web)
                 docker build \
                   -f apps/web/Dockerfile \
-                  --label org.opencontainers.image.revision="$GITHUB_SHA" \
+                  --label org.opencontainers.image.revision="$image_revision" \
                   --build-arg NEXT_PUBLIC_SITE_URL="$NEXT_PUBLIC_SITE_URL" \
                   --build-arg NEXT_PUBLIC_API_BASE_URL="$NEXT_PUBLIC_API_BASE_URL" \
                   --build-arg NEXT_PUBLIC_TURNSTILE_SITE_KEY="$NEXT_PUBLIC_TURNSTILE_SITE_KEY" \
@@ -373,14 +207,14 @@ jobs:
               api)
                 docker build \
                   -f apps/api/Dockerfile \
-                  --label org.opencontainers.image.revision="$GITHUB_SHA" \
+                  --label org.opencontainers.image.revision="$image_revision" \
                   -t "$local_image" \
                   .
                 ;;
               mcp)
                 docker build \
                   -f apps/mcp/Dockerfile \
-                  --label org.opencontainers.image.revision="$GITHUB_SHA" \
+                  --label org.opencontainers.image.revision="$image_revision" \
                   -t "$local_image" \
                   .
                 ;;
@@ -466,6 +300,7 @@ jobs:
           REMOTE_RELEASE_IMAGE_ARCHIVE: /tmp/portfolio-staging-${{ github.sha }}.tar.gz
           REMOTE_DEPLOY_SCRIPT: /tmp/portfolio-deploy-staging-${{ github.sha }}.sh
           RELEASE_SERVICES: ${{ needs.changes.outputs.release_services }}
+          EXPECTED_IMAGE_REVISIONS: ${{ needs.changes.outputs.expected_image_revisions }}
         run: |
           set -euo pipefail
           remote_env=(
@@ -475,6 +310,7 @@ jobs:
             "DEPLOY_MODE=staging"
             "RUN_BACKUP=false"
             "EXPECTED_IMAGE_REVISION=$GITHUB_SHA"
+            "EXPECTED_IMAGE_REVISIONS=$EXPECTED_IMAGE_REVISIONS"
             "RELEASE_SERVICES=$RELEASE_SERVICES"
           )
           if [ "$RELEASE_TRANSPORT" = "archive" ]; then
@@ -716,19 +552,32 @@ jobs:
           COMPOSE_PROJECT_NAME: portfolio-production
           RELEASE_IMAGE_ARCHIVE: /tmp/portfolio-production-images.tar.gz
           RELEASE_SERVICES: ${{ needs.changes.outputs.release_services }}
+          EXPECTED_IMAGE_REVISIONS: ${{ needs.changes.outputs.expected_image_revisions }}
         run: |
           set -euo pipefail
           archive_images=()
           release_image_refs=()
 
+          image_revision_for_service() {
+            service="$1"
+            for entry in $EXPECTED_IMAGE_REVISIONS; do
+              case "$entry" in
+                "$service="*) printf '%s\n' "${entry#*=}"; return 0 ;;
+              esac
+            done
+            echo "::error::Missing expected image revision for service '$service'"
+            return 1
+          }
+
           for service in $RELEASE_SERVICES; do
+            image_revision="$(image_revision_for_service "$service")"
             local_image="${COMPOSE_PROJECT_NAME}-${service}:latest"
             registry_image="${ARTIFACT_REGISTRY_DOCKER_REPOSITORY}/${COMPOSE_PROJECT_NAME}-${service}:${GITHUB_SHA}"
             case "$service" in
               web)
                 docker build \
                   -f apps/web/Dockerfile \
-                  --label org.opencontainers.image.revision="$GITHUB_SHA" \
+                  --label org.opencontainers.image.revision="$image_revision" \
                   --build-arg NEXT_PUBLIC_SITE_URL="$NEXT_PUBLIC_SITE_URL" \
                   --build-arg NEXT_PUBLIC_API_BASE_URL="$NEXT_PUBLIC_API_BASE_URL" \
                   --build-arg NEXT_PUBLIC_TURNSTILE_SITE_KEY="$NEXT_PUBLIC_TURNSTILE_SITE_KEY" \
@@ -738,14 +587,14 @@ jobs:
               api)
                 docker build \
                   -f apps/api/Dockerfile \
-                  --label org.opencontainers.image.revision="$GITHUB_SHA" \
+                  --label org.opencontainers.image.revision="$image_revision" \
                   -t "$local_image" \
                   .
                 ;;
               mcp)
                 docker build \
                   -f apps/mcp/Dockerfile \
-                  --label org.opencontainers.image.revision="$GITHUB_SHA" \
+                  --label org.opencontainers.image.revision="$image_revision" \
                   -t "$local_image" \
                   .
                 ;;
@@ -831,6 +680,7 @@ jobs:
           REMOTE_RELEASE_IMAGE_ARCHIVE: /tmp/portfolio-production-${{ github.sha }}.tar.gz
           REMOTE_DEPLOY_SCRIPT: /tmp/portfolio-deploy-production-${{ github.sha }}.sh
           RELEASE_SERVICES: ${{ needs.changes.outputs.release_services }}
+          EXPECTED_IMAGE_REVISIONS: ${{ needs.changes.outputs.expected_image_revisions }}
           NEXT_PUBLIC_TURNSTILE_SITE_KEY: ${{ vars.NEXT_PUBLIC_TURNSTILE_SITE_KEY }}
           TURNSTILE_SECRET_KEY: ${{ secrets.TURNSTILE_SECRET_KEY }}
         run: |
@@ -842,6 +692,7 @@ jobs:
             "DEPLOY_MODE=production"
             "RUN_BACKUP=true"
             "EXPECTED_IMAGE_REVISION=$GITHUB_SHA"
+            "EXPECTED_IMAGE_REVISIONS=$EXPECTED_IMAGE_REVISIONS"
             "RELEASE_SERVICES=$RELEASE_SERVICES"
             "NEXT_PUBLIC_TURNSTILE_SITE_KEY=$NEXT_PUBLIC_TURNSTILE_SITE_KEY"
             "TURNSTILE_SECRET_KEY=$TURNSTILE_SECRET_KEY"

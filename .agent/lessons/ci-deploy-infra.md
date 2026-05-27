@@ -1,5 +1,29 @@
 # CI, Deploy, and Infrastructure Lessons
 
+## 2026-05-27 - Partial deploy success hid stale service drift
+
+What happened:
+
+- Production served a new web build that called `/api/admin/media`, but the production API image was still from before media routes existed.
+- Earlier media/API deploys had failed or skipped production, then a later web-only deploy succeeded and updated only the web service.
+- The final workflow looked green even though production was internally inconsistent.
+
+Why it happened:
+
+- Context-aware deploy selection used the latest changed files as the only source of truth.
+- I treated "production deploy succeeded" as a global state, but it only proved that the selected services deployed.
+- The workflow did not track service-level desired revisions or compare them with the latest successful deploy that actually included each service.
+
+What I should have done:
+
+- For partial deploy systems, model each deployable service as its own stateful unit.
+- Before optimizing builds/deploys by changed paths, define the recovery rule for missed, failed, canceled, and retried deploys.
+- Verify that a later unrelated success cannot mask an earlier failed service deploy.
+
+Working rule:
+
+- A green partial deploy is not proof that the whole application is current. Whenever CI/CD deploys only selected services, track or infer per-service desired revisions and force redeploy of any stale service before reporting the release healthy.
+
 ## 2026-05-16 - Terraform apply environment bypassed approval and missed vars
 
 What happened:
