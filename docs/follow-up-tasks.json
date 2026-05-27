@@ -243,6 +243,40 @@
       ]
     },
     {
+      "id": "per-service-deployment-drift-recovery",
+      "title": "Add per-service deployment drift recovery",
+      "status": "completed",
+      "priority": "high",
+      "goal": "Prevent a successful partial deploy from leaving production with stale web, API, or MCP service revisions.",
+      "scope": [
+        "Inspect previous successful production deploys and infer which services each run released.",
+        "Compute the desired revision for each service from the latest source, dependency, Dockerfile, compose, migration, or deploy-contract change that affects it.",
+        "Before deploy, compare desired revisions with the latest successful production deploy that released each service.",
+        "Automatically add stale services to RELEASE_SERVICES even when the latest merge changed only another service.",
+        "Report whether each service was selected by changed files, manual dispatch, or drift recovery.",
+        "Label release images with service-specific desired revisions.",
+        "Keep workflow_dispatch as a full deploy fallback without making normal recovery depend on manual reruns."
+      ],
+      "acceptanceCriteria": [
+        "If an API deploy fails and a later web-only commit reaches main, the next deploy includes API automatically.",
+        "Workflow summaries show selected services and the selection reason for each service.",
+        "Production cannot report a successful deploy while any required service remains on an older desired revision.",
+        "Manual full deploy still deploys web, API, and MCP for emergency recovery.",
+        "The drift check works for both staging and production."
+      ],
+      "tests": [
+        "Unit or shell tests for service desired-revision calculation if extracted.",
+        "Workflow validation covering a stale API with a web-only latest commit.",
+        "Staging rehearsal that intentionally deploys a partial service set and verifies recovery includes the stale service.",
+        "Deploy script validation that records and reports deployed service revisions."
+      ],
+      "notes": [
+        "This task was created after production served a new web build that called /api/admin/media while the production API image was still from before media routes existed.",
+        "The failure sequence was: media/API deploys failed or skipped production, then a later web-only deploy succeeded and updated only web.",
+        "Deploy scope detection is now covered by Python unit tests in scripts/test_detect_deploy_scope.py."
+      ]
+    },
+    {
       "id": "mcp-end-to-end-validation",
       "title": "Test MCP behavior end to end",
       "status": "pending",

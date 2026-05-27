@@ -367,3 +367,6 @@ jobs:
 
       - name: Validate shell scripts
         run: bash -n deploy/compose/*.sh
+
+      - name: Test deploy scope detection
+        run: python -m unittest scripts/test_detect_deploy_scope.py
