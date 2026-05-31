@@ -181,8 +181,11 @@ func TestHelpers(t *testing.T) {
 	if got := slugify("  MCP as a Portfolio Interface!  "); got != "mcp-as-a-portfolio-interface" {
 		t.Fatalf("slugify = %q", got)
 	}
-	if got := sanitizedHTML("Hello <script>alert(1)</script>"); strings.Contains(got, "<script>") {
-		t.Fatalf("sanitizedHTML did not escape script tag: %q", got)
+	if got := sanitizedHTML(`<h2>Intro</h2><p>Hello <strong>reader</strong><script>alert(1)</script></p>`); strings.Contains(got, "<script>") || !strings.Contains(got, "<h2>Intro</h2>") || !strings.Contains(got, "<strong>reader</strong>") {
+		t.Fatalf("sanitizedHTML sanitized rich content incorrectly: %q", got)
+	}
+	if got := sanitizedPostHTML("", "Hello <script>alert(1)</script>"); strings.Contains(got, "<script>") || !strings.Contains(got, "&lt;script&gt;") {
+		t.Fatalf("sanitizedPostHTML legacy fallback did not escape markdown: %q", got)
 	}
 	if got := clientIPFromRemoteAddr("[2001:db8::1]:443"); got != "2001:db8::1" {
 		t.Fatalf("clientIPFromRemoteAddr IPv6 = %q", got)

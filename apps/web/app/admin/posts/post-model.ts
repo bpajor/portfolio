@@ -6,6 +6,7 @@ export type AdminPost = {
   title: string;
   excerpt: string;
   contentMarkdown?: string;
+  contentHtmlSanitized?: string;
   status: PostStatus;
   publishedAt?: string;
   seoTitle: string;
@@ -21,6 +22,7 @@ export type PostPayload = {
   title: string;
   excerpt: string;
   contentMarkdown: string;
+  contentHtmlSanitized: string;
   status: PostStatus;
   seoTitle: string;
   seoDescription: string;
@@ -56,6 +58,7 @@ export function buildPostPayload(form: FormData, status: PostStatus): PostPayloa
     title: text("title"),
     excerpt: text("excerpt"),
     contentMarkdown: text("contentMarkdown"),
+    contentHtmlSanitized: text("contentHtmlSanitized"),
     status,
     seoTitle: text("seoTitle"),
     seoDescription: text("seoDescription"),

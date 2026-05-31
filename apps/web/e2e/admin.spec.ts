@@ -16,6 +16,17 @@ test.describe("admin surface", () => {
     ]);
   }
 
+  async function writeRichArticle(page: Page) {
+    const editor = page.getByRole("textbox", { name: "Article editor" });
+    await editor.click();
+    await page.getByRole("button", { name: "Heading 2" }).click();
+    await page.keyboard.type("Intro");
+    await page.keyboard.press("Enter");
+    await page.keyboard.press("Control+B");
+    await page.keyboard.type("Published body.");
+    await page.keyboard.press("Control+B");
+  }
+
   test("requires login before publishing workflows", async ({ page }) => {
     await page.goto("/admin");
     await expect(page).toHaveURL(/\/admin\/login/);
@@ -111,7 +122,7 @@ test.describe("admin surface", () => {
   test("publishes a new blog post through the admin form", async ({ page }) => {
     await signInByCookie(page);
 
-    let payload: Record<string, unknown> | null = null;
+    const payloads: Record<string, unknown>[] = [];
     await page.route("**/api/admin/media", async (route) => {
       if (route.request().method() === "GET") {
         await route.fulfill({
@@ -139,7 +150,7 @@ test.describe("admin surface", () => {
         return;
       }
 
-      payload = route.request().postDataJSON() as Record<string, unknown>;
+      payloads.push(route.request().postDataJSON() as Record<string, unknown>);
       await route.fulfill({
         status: 201,
         contentType: "application/json",
@@ -165,7 +176,7 @@ test.describe("admin surface", () => {
     await page.getByRole("textbox", { name: "Title", exact: true }).fill("Admin E2E Post");
     await page.getByLabel("Slug").fill("admin-e2e-post");
     await page.getByLabel("Excerpt").fill("Published from the admin panel.");
-    await page.getByLabel("Markdown").fill("## Intro\n\nPublished body.");
+    await writeRichArticle(page);
     await page.getByRole("textbox", { name: "SEO title", exact: true }).fill("Admin E2E Post");
     await page.getByLabel("SEO description").fill("Published from the admin panel.");
     await page.getByLabel("Open Graph image").selectOption("media-hero");
@@ -173,13 +184,17 @@ test.describe("admin surface", () => {
     await page.getByRole("button", { name: "Publish" }).click();
 
     await expect(page).toHaveURL(/\/admin\/posts\/post-123/);
-    expect(payload).toMatchObject({
+    const submittedPost = payloads[0];
+    expect(submittedPost).toMatchObject({
       slug: "admin-e2e-post",
       title: "Admin E2E Post",
       status: "published",
       ogImageId: "media-hero",
       tags: ["Admin", "E2E"]
     });
+    expect(submittedPost.contentMarkdown).toContain("## Intro");
+    expect(submittedPost.contentHtmlSanitized).toContain("<h2>Intro</h2>");
+    expect(submittedPost.contentHtmlSanitized).toContain("<strong>Published body.</strong>");
   });
 
   test("keeps the selected Open Graph image when editing a post", async ({ page }) => {

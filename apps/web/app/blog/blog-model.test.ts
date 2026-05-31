@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { markdownSections, publicPostToBlogPost, readingTime, staticPostToPublicPost } from "./blog-model";
+import { hasRenderableRichHtml, markdownSections, publicPostToBlogPost, readingTime, staticPostToPublicPost } from "./blog-model";
 
 describe("blog model", () => {
   it("converts static posts to API-shaped posts", () => {
@@ -24,6 +24,7 @@ describe("blog model", () => {
       title: "API SEO Post",
       excerpt: "An API-published article.",
       contentMarkdown: "Lead paragraph.\n\n## Deep section\n\nCrawler-visible body.",
+      contentHtmlSanitized: "<p>Lead paragraph.</p><h2>Deep section</h2><p>Crawler-visible body.</p>",
       status: "published",
       publishedAt: "2026-05-16T12:00:00Z",
       seoTitle: "API SEO Post for crawlers",
@@ -36,6 +37,7 @@ describe("blog model", () => {
       slug: "api-seo-post",
       title: "API SEO Post",
       excerpt: "An API-published article.",
+      contentHtmlSanitized: "<p>Lead paragraph.</p><h2>Deep section</h2><p>Crawler-visible body.</p>",
       seoTitle: "API SEO Post for crawlers",
       seoDescription: "A crawler-focused description.",
       ogImageId: "media-hero",
@@ -53,5 +55,10 @@ describe("blog model", () => {
 
   it("estimates at least one minute of reading time", () => {
     expect(readingTime("short post")).toBe("1 min read");
+  });
+
+  it("detects rich HTML separately from legacy preformatted markdown", () => {
+    expect(hasRenderableRichHtml("<h2>Intro</h2><p>Body</p>")).toBe(true);
+    expect(hasRenderableRichHtml("<pre>## Intro\n\nBody</pre>")).toBe(false);
   });
 });

@@ -335,6 +335,7 @@ func TestAPIIntegrationWithPostgres(t *testing.T) {
 		"title":"Integration Published Post",
 		"excerpt":"Created through the admin API.",
 		"contentMarkdown":"## Intro\n\nThis post came from an integration test.",
+		"contentHtmlSanitized":"<h2>Intro</h2><p>This post came from an <strong>integration test</strong>.</p><script>alert(1)</script>",
 		"status":"published",
 		"seoTitle":"Integration Published Post",
 		"seoDescription":"Created through the admin API.",
@@ -390,17 +391,21 @@ func TestAPIIntegrationWithPostgres(t *testing.T) {
 		t.Fatalf("published post status = %d, body = %s", publicPost.Code, publicPost.Body.String())
 	}
 	var post struct {
-		Slug            string   `json:"slug"`
-		Title           string   `json:"title"`
-		ContentMarkdown string   `json:"contentMarkdown"`
-		Status          string   `json:"status"`
-		Tags            []string `json:"tags"`
+		Slug                 string   `json:"slug"`
+		Title                string   `json:"title"`
+		ContentMarkdown      string   `json:"contentMarkdown"`
+		ContentHTMLSanitized string   `json:"contentHtmlSanitized"`
+		Status               string   `json:"status"`
+		Tags                 []string `json:"tags"`
 	}
 	if err := json.Unmarshal(publicPost.Body.Bytes(), &post); err != nil {
 		t.Fatalf("invalid public post JSON: %v", err)
 	}
 	if post.Slug != slug || post.Status != "published" || !strings.Contains(post.ContentMarkdown, "integration test") {
 		t.Fatalf("unexpected public post = %#v", post)
+	}
+	if !strings.Contains(post.ContentHTMLSanitized, "<strong>integration test</strong>") || strings.Contains(post.ContentHTMLSanitized, "<script>") {
+		t.Fatalf("unexpected public post HTML = %q", post.ContentHTMLSanitized)
 	}
 
 	comment := httptest.NewRecorder()

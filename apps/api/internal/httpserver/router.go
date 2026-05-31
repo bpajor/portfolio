@@ -26,6 +26,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/microcosm-cc/bluemonday"
 )
 
 const adminSessionCookie = "portfolio_admin_session"
@@ -579,7 +580,7 @@ func (s Server) adminCreatePost(w http.ResponseWriter, r *http.Request) {
 		Title:                req.Title,
 		Excerpt:              req.Excerpt,
 		ContentMarkdown:      req.ContentMarkdown,
-		ContentHtmlSanitized: sanitizedHTML(req.ContentMarkdown),
+		ContentHtmlSanitized: sanitizedPostHTML(req.ContentHTMLSanitized, req.ContentMarkdown),
 		Status:               req.status(),
 		PublishedAt:          publishedAt(req.status()),
 		AuthorID:             pgUUID(session.UserID),
@@ -620,7 +621,7 @@ func (s Server) adminUpdatePost(w http.ResponseWriter, r *http.Request) {
 		Title:                req.Title,
 		Excerpt:              req.Excerpt,
 		ContentMarkdown:      req.ContentMarkdown,
-		ContentHtmlSanitized: sanitizedHTML(req.ContentMarkdown),
+		ContentHtmlSanitized: sanitizedPostHTML(req.ContentHTMLSanitized, req.ContentMarkdown),
 		Status:               req.status(),
 		PublishedAt:          publishedAt(req.status()),
 		SeoTitle:             req.SeoTitle,
@@ -1184,15 +1185,16 @@ type changePasswordRequest struct {
 }
 
 type postRequest struct {
-	Slug            string   `json:"slug"`
-	Title           string   `json:"title"`
-	Excerpt         string   `json:"excerpt"`
-	ContentMarkdown string   `json:"contentMarkdown"`
-	Status          string   `json:"status"`
-	SeoTitle        string   `json:"seoTitle"`
-	SeoDescription  string   `json:"seoDescription"`
-	OgImageID       *string  `json:"ogImageId"`
-	Tags            []string `json:"tags"`
+	Slug                 string   `json:"slug"`
+	Title                string   `json:"title"`
+	Excerpt              string   `json:"excerpt"`
+	ContentMarkdown      string   `json:"contentMarkdown"`
+	ContentHTMLSanitized string   `json:"contentHtmlSanitized"`
+	Status               string   `json:"status"`
+	SeoTitle             string   `json:"seoTitle"`
+	SeoDescription       string   `json:"seoDescription"`
+	OgImageID            *string  `json:"ogImageId"`
+	Tags                 []string `json:"tags"`
 }
 
 type commentRequest struct {
@@ -1337,6 +1339,7 @@ func decodePostRequest(w http.ResponseWriter, r *http.Request) (postRequest, boo
 	req.Title = strings.TrimSpace(req.Title)
 	req.Excerpt = strings.TrimSpace(req.Excerpt)
 	req.ContentMarkdown = strings.TrimSpace(req.ContentMarkdown)
+	req.ContentHTMLSanitized = strings.TrimSpace(req.ContentHTMLSanitized)
 	req.SeoTitle = strings.TrimSpace(req.SeoTitle)
 	req.SeoDescription = strings.TrimSpace(req.SeoDescription)
 	if req.Title == "" {
@@ -1347,7 +1350,7 @@ func decodePostRequest(w http.ResponseWriter, r *http.Request) (postRequest, boo
 		writeError(w, http.StatusBadRequest, "slug_required", "Post slug is required.")
 		return req, false
 	}
-	if req.status() == apidb.PostStatusPublished && req.ContentMarkdown == "" {
+	if req.status() == apidb.PostStatusPublished && req.ContentMarkdown == "" && req.ContentHTMLSanitized == "" {
 		writeError(w, http.StatusBadRequest, "content_required", "Published posts require content.")
 		return req, false
 	}
@@ -1430,11 +1433,24 @@ func publishedAt(status apidb.PostStatus) pgtype.Timestamptz {
 	return pgtype.Timestamptz{Time: time.Now().UTC(), Valid: true}
 }
 
-func sanitizedHTML(markdown string) string {
-	if markdown == "" {
+func sanitizedPostHTML(htmlContent string, markdownFallback string) string {
+	htmlContent = strings.TrimSpace(htmlContent)
+	if htmlContent != "" {
+		return sanitizedHTML(htmlContent)
+	}
+	markdownFallback = strings.TrimSpace(markdownFallback)
+	if markdownFallback == "" {
 		return ""
 	}
-	return "<pre>" + html.EscapeString(markdown) + "</pre>"
+	return "<pre>" + html.EscapeString(markdownFallback) + "</pre>"
+}
+
+func sanitizedHTML(htmlContent string) string {
+	policy := bluemonday.UGCPolicy()
+	policy.AllowElements("h2", "h3", "h4", "p", "strong", "em", "u", "s", "ul", "ol", "li", "blockquote", "pre", "code", "br", "hr")
+	policy.AllowAttrs("target").OnElements("a")
+	policy.AllowAttrs("rel").OnElements("a")
+	return policy.Sanitize(htmlContent)
 }
 
 func publishedPostRowToResponse(post apidb.ListPublishedPostsRow) postResponse {

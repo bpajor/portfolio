@@ -68,7 +68,7 @@ export function BlogList({ initialPosts = null }: { initialPosts?: PublicPost[] 
         <Link key={post.slug} href={`/blog/${post.slug}`} className="group rounded-2xl border border-white/10 bg-slate-900/80 p-5 shadow-xl shadow-black/20 transition hover:-translate-y-0.5 hover:border-sky-300/40 hover:bg-slate-900 md:p-6">
           <div className="flex items-start justify-between gap-4">
             <div className="font-mono text-xs uppercase text-slate-500">
-              {formatPublishedDate(post.publishedAt)} / {readingTime(post.contentMarkdown ?? post.excerpt)}
+              {formatPublishedDate(post.publishedAt)} / {readingTime(post.contentHtmlSanitized || post.contentMarkdown || post.excerpt)}
             </div>
             <ArrowUpRight className="text-slate-500 transition group-hover:text-sky-300" size={22} aria-hidden="true" />
           </div>
