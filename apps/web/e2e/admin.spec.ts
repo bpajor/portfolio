@@ -19,12 +19,12 @@ test.describe("admin surface", () => {
   async function writeRichArticle(page: Page) {
     const editor = page.getByRole("textbox", { name: "Article editor" });
     await editor.click();
-    await page.getByRole("button", { name: "Heading 2" }).click();
-    await page.keyboard.type("Intro");
-    await page.keyboard.press("Enter");
-    await page.keyboard.press("Control+B");
-    await page.keyboard.type("Published body.");
-    await page.keyboard.press("Control+B");
+    await page.keyboard.press("Control+Alt+2");
+    await editor.pressSequentially("Intro", { delay: 10 });
+    await editor.press("Enter");
+    await editor.press("Control+B");
+    await editor.pressSequentially("Published body.", { delay: 10 });
+    await editor.press("Control+B");
   }
 
   test("requires login before publishing workflows", async ({ page }) => {

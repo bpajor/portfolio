@@ -23,6 +23,15 @@ async function deleteAdminPost(page: Page, postId: string, origin = baseOrigin, 
   expect([204, 404], await response.text()).toContain(response.status());
 }
 
+async function writeRichArticle(page: Page, heading: string, body: string) {
+  const editor = page.getByRole("textbox", { name: "Article editor" });
+  await editor.click();
+  await page.keyboard.press("Control+Alt+2");
+  await editor.pressSequentially(heading, { delay: 10 });
+  await editor.press("Enter");
+  await editor.pressSequentially(body, { delay: 10 });
+}
+
 test.describe("admin live staging", () => {
   test.skip(!adminSessionToken, "requires E2E_ADMIN_SESSION_TOKEN from the deployed staging database");
 
@@ -78,7 +87,7 @@ test.describe("admin live staging", () => {
       await page.getByRole("textbox", { name: "Title", exact: true }).fill(title);
       await page.getByLabel("Slug").fill(slug);
       await page.getByLabel("Excerpt").fill("A live staging post created by Playwright.");
-      await page.getByLabel("Markdown").fill("## Live staging\n\nThis post verifies real admin mutations.");
+      await writeRichArticle(page, "Live staging", "This post verifies real admin mutations.");
       await page.getByRole("textbox", { name: "SEO title", exact: true }).fill(title);
       await page.getByLabel("SEO description").fill("A live staging post created by Playwright.");
       await page.getByLabel("Tags").fill("E2E, Staging");
