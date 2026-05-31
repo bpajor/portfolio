@@ -5,20 +5,22 @@ import { FileText, MessageSquare, ShieldCheck, Sparkles } from "lucide-react";
 import { apiUrl } from "../api-url";
 import { Panel } from "./_components/admin-shell";
 import { AdminPost } from "./posts/post-model";
+import { AdminProject } from "./projects/project-model";
 import { CommentStatusLike, countPendingComments } from "./comments/comment-model";
 
 export { countPendingComments } from "./comments/comment-model";
-
-type AdminStatsProps = {
-  featuredProjectsCount: number;
-};
 
 export function countPublishedPosts(posts: Array<Pick<AdminPost, "status">>) {
   return posts.filter((post) => post.status === "published").length;
 }
 
-export function AdminStats({ featuredProjectsCount }: AdminStatsProps) {
+export function countFeaturedProjects(projects: Array<Pick<AdminProject, "isFeatured">>) {
+  return projects.filter((project) => project.isFeatured).length;
+}
+
+export function AdminStats() {
   const [publishedPostsCount, setPublishedPostsCount] = useState<number | null>(null);
+  const [featuredProjectsCount, setFeaturedProjectsCount] = useState<number | null>(null);
   const [pendingCommentsCount, setPendingCommentsCount] = useState<number | null>(null);
 
   useEffect(() => {
@@ -39,6 +41,32 @@ export function AdminStats({ featuredProjectsCount }: AdminStatsProps) {
       .catch(() => {
         if (!ignore) {
           setPublishedPostsCount(0);
+        }
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let ignore = false;
+
+    fetch(apiUrl("/admin/projects"), { credentials: "include" })
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error("projects unavailable");
+        }
+        return response.json() as Promise<AdminProject[]>;
+      })
+      .then((projects) => {
+        if (!ignore) {
+          setFeaturedProjectsCount(countFeaturedProjects(projects));
+        }
+      })
+      .catch(() => {
+        if (!ignore) {
+          setFeaturedProjectsCount(0);
         }
       });
 
@@ -75,7 +103,7 @@ export function AdminStats({ featuredProjectsCount }: AdminStatsProps) {
 
   const stats = [
     { label: "Published posts", value: publishedPostsCount === null ? "..." : publishedPostsCount, icon: FileText },
-    { label: "Featured projects", value: featuredProjectsCount, icon: Sparkles },
+    { label: "Featured projects", value: featuredProjectsCount === null ? "..." : featuredProjectsCount, icon: Sparkles },
     { label: "Pending comments", value: pendingCommentsCount === null ? "..." : pendingCommentsCount, icon: MessageSquare },
     { label: "Security checks", value: 4, icon: ShieldCheck }
   ];

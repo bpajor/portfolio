@@ -2,8 +2,8 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { ArrowUpRight } from "lucide-react";
 import { PageIntro, SiteFrame } from "../_components/site-frame";
-import { projects } from "../site-data";
 import { JsonLd, breadcrumbJsonLd, pageMetadata } from "../seo";
+import { getPublicProjects } from "./server-projects";
 
 const title = "Projects";
 const description =
@@ -15,7 +15,9 @@ export const metadata: Metadata = pageMetadata({
   path: "/projects"
 });
 
-export default function ProjectsPage() {
+export default async function ProjectsPage() {
+  const projects = await getPublicProjects();
+
   return (
     <SiteFrame>
       <JsonLd
@@ -31,7 +33,7 @@ export default function ProjectsPage() {
       />
 
       <section className="mx-auto grid max-w-6xl gap-5 px-5 pb-16 md:grid-cols-2">
-        {projects.map((project) => (
+        {(projects ?? []).map((project) => (
           <Link key={project.slug} href={`/projects/${project.slug}`} className="group flex min-h-full flex-col rounded-2xl border border-white/10 bg-slate-900/80 p-5 shadow-xl shadow-black/20 transition hover:-translate-y-0.5 hover:border-sky-300/40 hover:bg-slate-900 md:p-6">
             <div className="flex items-start justify-between gap-4">
               <div>

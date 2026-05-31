@@ -100,6 +100,8 @@ func New(cfg config.Config, logger *slog.Logger, db *pgxpool.Pool, repo content.
 				r.Get("/me", server.adminMe)
 				r.Get("/posts", server.adminListPosts)
 				r.Get("/posts/{id}", server.adminGetPost)
+				r.Get("/projects", server.adminListProjects)
+				r.Get("/projects/{id}", server.adminGetProject)
 				r.Get("/comments", server.adminListComments)
 				r.Get("/media", server.adminListMedia)
 
@@ -109,6 +111,8 @@ func New(cfg config.Config, logger *slog.Logger, db *pgxpool.Pool, repo content.
 					r.Post("/posts", server.adminCreatePost)
 					r.Put("/posts/{id}", server.adminUpdatePost)
 					r.Delete("/posts/{id}", server.adminDeletePost)
+					r.Post("/projects", server.adminCreateProject)
+					r.Put("/projects/{id}", server.adminUpdateProject)
 					r.Put("/comments/{id}/moderate", server.adminModerateComment)
 					r.Post("/media", server.adminUploadMedia)
 					r.Put("/media/{id}", server.adminUpdateMedia)
@@ -167,6 +171,22 @@ func (s Server) getProfile(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s Server) listProjects(w http.ResponseWriter, r *http.Request) {
+	if s.queries != nil {
+		projects, err := s.queries.ListFeaturedProjects(r.Context())
+		if err != nil {
+			s.logger.Error("list projects failed", "error", err)
+			writeError(w, http.StatusInternalServerError, "projects_unavailable", "Projects are temporarily unavailable.")
+			return
+		}
+
+		out := make([]projectResponse, 0, len(projects))
+		for _, project := range projects {
+			out = append(out, projectModelToResponse(project))
+		}
+		writeJSON(w, http.StatusOK, out)
+		return
+	}
+
 	projects, err := s.repo.ListFeaturedProjects(r.Context())
 	if err != nil {
 		s.logger.Error("list projects failed", "error", err)
@@ -174,13 +194,32 @@ func (s Server) listProjects(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, projects)
+	out := make([]projectResponse, 0, len(projects))
+	for _, project := range projects {
+		out = append(out, contentProjectToResponse(project))
+	}
+	writeJSON(w, http.StatusOK, out)
 }
 
 func (s Server) getProject(w http.ResponseWriter, r *http.Request) {
 	slug := strings.TrimSpace(chi.URLParam(r, "slug"))
 	if slug == "" {
 		writeError(w, http.StatusBadRequest, "missing_slug", "Project slug is required.")
+		return
+	}
+
+	if s.queries != nil {
+		project, err := s.queries.GetProjectBySlug(r.Context(), slug)
+		if errors.Is(err, pgx.ErrNoRows) || (err == nil && !project.IsFeatured) {
+			writeError(w, http.StatusNotFound, "project_not_found", "Project was not found.")
+			return
+		}
+		if err != nil {
+			s.logger.Error("get project failed", "slug", slug, "error", err)
+			writeError(w, http.StatusInternalServerError, "project_unavailable", "Project is temporarily unavailable.")
+			return
+		}
+		writeJSON(w, http.StatusOK, projectModelToResponse(project))
 		return
 	}
 
@@ -195,7 +234,7 @@ func (s Server) getProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, project)
+	writeJSON(w, http.StatusOK, contentProjectToResponse(project))
 }
 
 func (s Server) listPublishedPosts(w http.ResponseWriter, r *http.Request) {
@@ -616,6 +655,120 @@ func (s Server) adminDeletePost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s Server) adminListProjects(w http.ResponseWriter, r *http.Request) {
+	projects, err := s.queries.AdminListProjects(r.Context())
+	if err != nil {
+		s.logger.Error("admin list projects failed", "error", err)
+		writeError(w, http.StatusInternalServerError, "projects_unavailable", "Projects are temporarily unavailable.")
+		return
+	}
+
+	out := make([]projectResponse, 0, len(projects))
+	for _, project := range projects {
+		out = append(out, projectModelToResponse(project))
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+func (s Server) adminGetProject(w http.ResponseWriter, r *http.Request) {
+	id, ok := parseUUIDParam(w, r, "id")
+	if !ok {
+		return
+	}
+
+	project, found, err := s.adminProjectByID(r.Context(), id)
+	if err != nil {
+		s.logger.Error("admin get project failed", "error", err)
+		writeError(w, http.StatusInternalServerError, "project_unavailable", "Project is temporarily unavailable.")
+		return
+	}
+	if !found {
+		writeError(w, http.StatusNotFound, "project_not_found", "Project was not found.")
+		return
+	}
+	writeJSON(w, http.StatusOK, projectModelToResponse(project))
+}
+
+func (s Server) adminCreateProject(w http.ResponseWriter, r *http.Request) {
+	req, ok := decodeProjectRequest(w, r)
+	if !ok {
+		return
+	}
+
+	project, err := s.queries.CreateProject(r.Context(), apidb.CreateProjectParams{
+		Slug:        req.slug(),
+		Title:       req.Title,
+		Eyebrow:     req.Eyebrow,
+		Summary:     req.Summary,
+		Description: req.Description,
+		Problem:     req.Problem,
+		Built:       req.Built,
+		Signals:     req.cleanSignals(),
+		Stack:       req.cleanStack(),
+		RepoUrl:     req.RepoURL,
+		DemoUrl:     pgText(req.DemoURL),
+		SortOrder:   int32(req.SortOrder),
+		IsFeatured:  req.IsFeatured,
+	})
+	if err != nil {
+		s.logger.Error("admin create project failed", "error", err)
+		writeError(w, http.StatusInternalServerError, "project_create_failed", "Project could not be created.")
+		return
+	}
+	writeJSON(w, http.StatusCreated, projectModelToResponse(project))
+}
+
+func (s Server) adminUpdateProject(w http.ResponseWriter, r *http.Request) {
+	id, ok := parseUUIDParam(w, r, "id")
+	if !ok {
+		return
+	}
+	req, ok := decodeProjectRequest(w, r)
+	if !ok {
+		return
+	}
+
+	project, err := s.queries.UpdateProject(r.Context(), apidb.UpdateProjectParams{
+		ID:          id,
+		Slug:        req.slug(),
+		Title:       req.Title,
+		Eyebrow:     req.Eyebrow,
+		Summary:     req.Summary,
+		Description: req.Description,
+		Problem:     req.Problem,
+		Built:       req.Built,
+		Signals:     req.cleanSignals(),
+		Stack:       req.cleanStack(),
+		RepoUrl:     req.RepoURL,
+		DemoUrl:     pgText(req.DemoURL),
+		SortOrder:   int32(req.SortOrder),
+		IsFeatured:  req.IsFeatured,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		writeError(w, http.StatusNotFound, "project_not_found", "Project was not found.")
+		return
+	}
+	if err != nil {
+		s.logger.Error("admin update project failed", "error", err)
+		writeError(w, http.StatusInternalServerError, "project_update_failed", "Project could not be updated.")
+		return
+	}
+	writeJSON(w, http.StatusOK, projectModelToResponse(project))
+}
+
+func (s Server) adminProjectByID(ctx context.Context, id uuid.UUID) (apidb.Project, bool, error) {
+	projects, err := s.queries.AdminListProjects(ctx)
+	if err != nil {
+		return apidb.Project{}, false, err
+	}
+	for _, project := range projects {
+		if project.ID == id {
+			return project, true, nil
+		}
+	}
+	return apidb.Project{}, false, nil
 }
 
 func (s Server) adminListComments(w http.ResponseWriter, r *http.Request) {
@@ -1112,6 +1265,25 @@ type postResponse struct {
 	UpdatedAt            time.Time  `json:"updatedAt"`
 }
 
+type projectResponse struct {
+	ID          string    `json:"id,omitempty"`
+	Slug        string    `json:"slug"`
+	Title       string    `json:"title"`
+	Eyebrow     string    `json:"eyebrow"`
+	Summary     string    `json:"summary"`
+	Description string    `json:"description"`
+	Problem     string    `json:"problem"`
+	Built       string    `json:"built"`
+	Signals     []string  `json:"signals"`
+	Stack       []string  `json:"stack"`
+	RepoURL     string    `json:"repoUrl"`
+	DemoURL     string    `json:"demoUrl"`
+	SortOrder   int32     `json:"sortOrder"`
+	IsFeatured  bool      `json:"isFeatured"`
+	CreatedAt   time.Time `json:"createdAt,omitempty"`
+	UpdatedAt   time.Time `json:"updatedAt,omitempty"`
+}
+
 type commentResponse struct {
 	ID          string    `json:"id"`
 	PostID      string    `json:"postId"`
@@ -1140,6 +1312,22 @@ type adminCommentResponse struct {
 	ModeratedAt *time.Time `json:"moderatedAt,omitempty"`
 }
 
+type projectRequest struct {
+	Slug        string   `json:"slug"`
+	Title       string   `json:"title"`
+	Eyebrow     string   `json:"eyebrow"`
+	Summary     string   `json:"summary"`
+	Description string   `json:"description"`
+	Problem     string   `json:"problem"`
+	Built       string   `json:"built"`
+	Signals     []string `json:"signals"`
+	Stack       []string `json:"stack"`
+	RepoURL     string   `json:"repoUrl"`
+	DemoURL     string   `json:"demoUrl"`
+	SortOrder   int      `json:"sortOrder"`
+	IsFeatured  bool     `json:"isFeatured"`
+}
+
 func decodePostRequest(w http.ResponseWriter, r *http.Request) (postRequest, bool) {
 	var req postRequest
 	if err := decodeJSON(r, &req); err != nil {
@@ -1164,6 +1352,75 @@ func decodePostRequest(w http.ResponseWriter, r *http.Request) (postRequest, boo
 		return req, false
 	}
 	return req, true
+}
+
+func decodeProjectRequest(w http.ResponseWriter, r *http.Request) (projectRequest, bool) {
+	var req projectRequest
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", "Request body is invalid.")
+		return req, false
+	}
+
+	req.Slug = strings.TrimSpace(req.Slug)
+	req.Title = strings.TrimSpace(req.Title)
+	req.Eyebrow = strings.TrimSpace(req.Eyebrow)
+	req.Summary = strings.TrimSpace(req.Summary)
+	req.Description = strings.TrimSpace(req.Description)
+	req.Problem = strings.TrimSpace(req.Problem)
+	req.Built = strings.TrimSpace(req.Built)
+	req.RepoURL = strings.TrimSpace(req.RepoURL)
+	req.DemoURL = strings.TrimSpace(req.DemoURL)
+
+	if req.Title == "" {
+		writeError(w, http.StatusBadRequest, "title_required", "Project title is required.")
+		return req, false
+	}
+	if req.slug() == "" {
+		writeError(w, http.StatusBadRequest, "slug_required", "Project slug is required.")
+		return req, false
+	}
+	if req.Summary == "" {
+		writeError(w, http.StatusBadRequest, "summary_required", "Project summary is required.")
+		return req, false
+	}
+	if req.RepoURL == "" {
+		writeError(w, http.StatusBadRequest, "repo_url_required", "Project repository URL is required.")
+		return req, false
+	}
+	return req, true
+}
+
+func (req projectRequest) slug() string {
+	if slug := slugify(req.Slug); slug != "" {
+		return slug
+	}
+	return slugify(req.Title)
+}
+
+func (req projectRequest) cleanSignals() []string {
+	return cleanStringList(req.Signals)
+}
+
+func (req projectRequest) cleanStack() []string {
+	return cleanStringList(req.Stack)
+}
+
+func cleanStringList(values []string) []string {
+	cleaned := make([]string, 0, len(values))
+	seen := map[string]struct{}{}
+	for _, value := range values {
+		item := strings.TrimSpace(value)
+		key := strings.ToLower(item)
+		if item == "" {
+			continue
+		}
+		if _, exists := seen[key]; exists {
+			continue
+		}
+		seen[key] = struct{}{}
+		cleaned = append(cleaned, item)
+	}
+	return cleaned
 }
 
 func publishedAt(status apidb.PostStatus) pgtype.Timestamptz {
@@ -1253,6 +1510,48 @@ func postModelToResponse(post apidb.Post, tags []string) postResponse {
 	}
 }
 
+func projectModelToResponse(project apidb.Project) projectResponse {
+	return projectResponse{
+		ID:          project.ID.String(),
+		Slug:        project.Slug,
+		Title:       project.Title,
+		Eyebrow:     project.Eyebrow,
+		Summary:     project.Summary,
+		Description: project.Description,
+		Problem:     project.Problem,
+		Built:       project.Built,
+		Signals:     project.Signals,
+		Stack:       project.Stack,
+		RepoURL:     project.RepoUrl,
+		DemoURL:     pgTextValue(project.DemoUrl),
+		SortOrder:   project.SortOrder,
+		IsFeatured:  project.IsFeatured,
+		CreatedAt:   project.CreatedAt.Time,
+		UpdatedAt:   project.UpdatedAt.Time,
+	}
+}
+
+func contentProjectToResponse(project content.Project) projectResponse {
+	out := projectResponse{
+		Slug:        project.Slug,
+		Title:       project.Title,
+		Eyebrow:     project.Eyebrow,
+		Summary:     project.Summary,
+		Description: project.Description,
+		Problem:     project.Problem,
+		Built:       project.Built,
+		Signals:     project.Signals,
+		Stack:       project.Stack,
+		RepoURL:     project.RepoURL,
+		SortOrder:   int32(project.SortOrder),
+		IsFeatured:  project.IsFeatured,
+	}
+	if project.DemoURL != nil {
+		out.DemoURL = *project.DemoURL
+	}
+	return out
+}
+
 func approvedCommentRowToResponse(comment apidb.ListApprovedCommentsForPostRow) commentResponse {
 	return commentResponse{
 		ID:          comment.ID.String(),
@@ -1326,6 +1625,21 @@ func pgTimePtr(value pgtype.Timestamptz) *time.Time {
 
 func pgUUID(id uuid.UUID) pgtype.UUID {
 	return pgtype.UUID{Bytes: id, Valid: true}
+}
+
+func pgText(value string) pgtype.Text {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return pgtype.Text{}
+	}
+	return pgtype.Text{String: value, Valid: true}
+}
+
+func pgTextValue(value pgtype.Text) string {
+	if !value.Valid {
+		return ""
+	}
+	return value.String
 }
 
 func pgUUIDPtr(value pgtype.UUID) *string {

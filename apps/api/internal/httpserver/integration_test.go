@@ -133,6 +133,106 @@ func TestAPIIntegrationWithPostgres(t *testing.T) {
 		t.Fatal("new password login did not set a session cookie")
 	}
 
+	projectSlug := "integration-project-crud"
+	if _, err := db.Exec(ctx, "DELETE FROM projects WHERE slug = $1", projectSlug); err != nil {
+		t.Fatalf("delete existing integration project failed: %v", err)
+	}
+	createProject := httptest.NewRecorder()
+	createProjectReq := httptest.NewRequest(http.MethodPost, "/api/admin/projects", strings.NewReader(`{
+		"slug":"integration-project-crud",
+		"title":"Integration Project CRUD",
+		"eyebrow":"Case study",
+		"summary":"Created through the admin project API.",
+		"description":"A project created by the integration suite.",
+		"problem":"Projects need admin editing.",
+		"built":"Implemented admin CRUD.",
+		"signals":["Admin CRUD","Public rendering"],
+		"stack":["Go","Next.js"],
+		"repoUrl":"https://github.com/bpajor/portfolio",
+		"demoUrl":"https://bpajor.dev/projects/integration-project-crud",
+		"sortOrder":5,
+		"isFeatured":true
+	}`))
+	createProjectReq.Header.Set("Content-Type", "application/json")
+	createProjectReq.Header.Set("Origin", "http://localhost:3000")
+	for _, cookie := range cookies {
+		createProjectReq.AddCookie(cookie)
+	}
+	handler.ServeHTTP(createProject, createProjectReq)
+	if createProject.Code != http.StatusCreated {
+		t.Fatalf("create project status = %d, body = %s", createProject.Code, createProject.Body.String())
+	}
+	var createdProject struct {
+		ID         string   `json:"id"`
+		Slug       string   `json:"slug"`
+		Signals    []string `json:"signals"`
+		Stack      []string `json:"stack"`
+		IsFeatured bool     `json:"isFeatured"`
+	}
+	if err := json.Unmarshal(createProject.Body.Bytes(), &createdProject); err != nil {
+		t.Fatalf("invalid created project JSON: %v", err)
+	}
+	if createdProject.ID == "" || createdProject.Slug != projectSlug || !createdProject.IsFeatured || len(createdProject.Signals) != 2 || len(createdProject.Stack) != 2 {
+		t.Fatalf("unexpected created project = %#v", createdProject)
+	}
+
+	adminProject := httptest.NewRecorder()
+	adminProjectReq := httptest.NewRequest(http.MethodGet, "/api/admin/projects/"+createdProject.ID, nil)
+	for _, cookie := range cookies {
+		adminProjectReq.AddCookie(cookie)
+	}
+	handler.ServeHTTP(adminProject, adminProjectReq)
+	if adminProject.Code != http.StatusOK {
+		t.Fatalf("admin get project status = %d, body = %s", adminProject.Code, adminProject.Body.String())
+	}
+
+	publicProject := httptest.NewRecorder()
+	handler.ServeHTTP(publicProject, httptest.NewRequest(http.MethodGet, "/api/projects/"+projectSlug, nil))
+	if publicProject.Code != http.StatusOK {
+		t.Fatalf("public project status = %d, body = %s", publicProject.Code, publicProject.Body.String())
+	}
+	var publicProjectBody struct {
+		Title string `json:"title"`
+	}
+	if err := json.Unmarshal(publicProject.Body.Bytes(), &publicProjectBody); err != nil {
+		t.Fatalf("invalid public project JSON: %v", err)
+	}
+	if publicProjectBody.Title != "Integration Project CRUD" {
+		t.Fatalf("public project title = %q", publicProjectBody.Title)
+	}
+
+	archiveProject := httptest.NewRecorder()
+	archiveProjectReq := httptest.NewRequest(http.MethodPut, "/api/admin/projects/"+createdProject.ID, strings.NewReader(`{
+		"slug":"integration-project-crud",
+		"title":"Integration Project CRUD",
+		"eyebrow":"Case study",
+		"summary":"Created through the admin project API.",
+		"description":"A project created by the integration suite.",
+		"problem":"Projects need admin editing.",
+		"built":"Implemented admin CRUD.",
+		"signals":["Admin CRUD","Public rendering"],
+		"stack":["Go","Next.js"],
+		"repoUrl":"https://github.com/bpajor/portfolio",
+		"demoUrl":"",
+		"sortOrder":5,
+		"isFeatured":false
+	}`))
+	archiveProjectReq.Header.Set("Content-Type", "application/json")
+	archiveProjectReq.Header.Set("Origin", "http://localhost:3000")
+	for _, cookie := range cookies {
+		archiveProjectReq.AddCookie(cookie)
+	}
+	handler.ServeHTTP(archiveProject, archiveProjectReq)
+	if archiveProject.Code != http.StatusOK {
+		t.Fatalf("archive project status = %d, body = %s", archiveProject.Code, archiveProject.Body.String())
+	}
+
+	publicProjectAfterArchive := httptest.NewRecorder()
+	handler.ServeHTTP(publicProjectAfterArchive, httptest.NewRequest(http.MethodGet, "/api/projects/"+projectSlug, nil))
+	if publicProjectAfterArchive.Code != http.StatusNotFound {
+		t.Fatalf("public archived project status = %d, want 404; body = %s", publicProjectAfterArchive.Code, publicProjectAfterArchive.Body.String())
+	}
+
 	mediaBody := bytes.Buffer{}
 	mediaWriter := multipart.NewWriter(&mediaBody)
 	if err := mediaWriter.WriteField("altText", "Integration media alt"); err != nil {

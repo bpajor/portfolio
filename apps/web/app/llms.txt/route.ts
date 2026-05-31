@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 import { absoluteUrl, defaultDescription, siteName } from "../seo";
-import { profile, projects } from "../site-data";
+import { profile } from "../site-data";
 import { getPublishedSeoPosts } from "../blog/server-posts";
+import { getSeoProjects } from "../projects/server-projects";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const posts = await getPublishedSeoPosts();
+  const [posts, projects] = await Promise.all([getPublishedSeoPosts(), getSeoProjects()]);
   const projectLines = projects.map((project) => `- ${project.title}: ${absoluteUrl(`/projects/${project.slug}`)} - ${project.summary}`).join("\n");
   const postLines = posts.map((post) => `- ${post.title}: ${absoluteUrl(`/blog/${post.slug}`)} - ${post.excerpt}`).join("\n");
 
