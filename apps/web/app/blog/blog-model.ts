@@ -6,6 +6,7 @@ export type PublicPost = {
   title: string;
   excerpt: string;
   contentMarkdown?: string;
+  contentHtmlSanitized?: string;
   status: "published";
   publishedAt?: string;
   seoTitle?: string;
@@ -22,6 +23,7 @@ export type MarkdownSection = {
 export type SeoBlogPost = BlogPost & {
   id?: string;
   contentMarkdown?: string;
+  contentHtmlSanitized?: string;
   seoTitle?: string;
   seoDescription?: string;
   ogImageId?: string | null;
@@ -34,6 +36,7 @@ export function staticPostToPublicPost(post: BlogPost): PublicPost {
     title: post.title,
     excerpt: post.excerpt,
     contentMarkdown: post.sections.map((section) => `## ${section.heading}\n\n${section.body}`).join("\n\n"),
+    contentHtmlSanitized: "",
     status: "published",
     publishedAt: post.publishedAt,
     tags: post.tags
@@ -49,6 +52,7 @@ export function publicPostToBlogPost(post: PublicPost): SeoBlogPost {
     title: post.title,
     excerpt: post.excerpt,
     contentMarkdown: post.contentMarkdown,
+    contentHtmlSanitized: post.contentHtmlSanitized,
     publishedAt: post.publishedAt ?? new Date().toISOString(),
     readingTime: readingTime(post.contentMarkdown ?? post.excerpt),
     tags: post.tags,
@@ -66,6 +70,7 @@ export function blogPostToPublicPost(post: SeoBlogPost): PublicPost {
     title: post.title,
     excerpt: post.excerpt,
     contentMarkdown: post.contentMarkdown ?? post.sections.map((section) => `## ${section.heading}\n\n${section.body}`).join("\n\n"),
+    contentHtmlSanitized: post.contentHtmlSanitized,
     status: "published",
     publishedAt: post.publishedAt,
     seoTitle: post.seoTitle,
@@ -83,8 +88,16 @@ export function formatPublishedDate(value?: string) {
 }
 
 export function readingTime(content = "") {
+  content = content.replace(/<[^>]+>/g, " ");
   const words = content.trim().split(/\s+/).filter(Boolean).length;
   return `${Math.max(1, Math.ceil(words / 200))} min read`;
+}
+
+export function hasRenderableRichHtml(value?: string) {
+  if (!value) {
+    return false;
+  }
+  return !/^<pre>[\s\S]*<\/pre>$/.test(value.trim());
 }
 
 export function markdownSections(markdown = ""): MarkdownSection[] {

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { apiUrl } from "../../api-url";
 import { AdminMediaItem } from "../media/media-model";
 import { AdminPost, PostStatus, buildPostPayload } from "./post-model";
+import { RichPostEditor } from "./rich-post-editor";
 
 type PostFormProps = {
   post?: AdminPost;
@@ -107,10 +108,7 @@ export function PostForm({ post }: PostFormProps) {
         <textarea name="excerpt" defaultValue={post?.excerpt ?? ""} rows={3} className="resize-none rounded-md border border-white/10 bg-slate-950 px-3 py-3 text-slate-100 outline-none focus:border-sky-300/50" />
       </label>
 
-      <label className="grid gap-2 text-sm text-slate-300">
-        Markdown
-        <textarea name="contentMarkdown" defaultValue={post?.contentMarkdown ?? ""} rows={16} className="resize-y rounded-md border border-white/10 bg-slate-950 px-3 py-3 font-mono text-sm text-slate-100 outline-none focus:border-sky-300/50" />
-      </label>
+      <RichPostEditor initialMarkdown={post?.contentMarkdown ?? ""} initialHtml={post?.contentHtmlSanitized ?? ""} />
 
       <div className="grid gap-4 md:grid-cols-2">
         <label className="grid gap-2 text-sm text-slate-300">

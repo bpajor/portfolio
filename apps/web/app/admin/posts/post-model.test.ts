@@ -12,6 +12,7 @@ describe("admin post model", () => {
     form.set("title", " My Post ");
     form.set("excerpt", " Short summary ");
     form.set("contentMarkdown", " ## Intro ");
+    form.set("contentHtmlSanitized", " <h2>Intro</h2><p>Body</p> ");
     form.set("seoTitle", " SEO title ");
     form.set("seoDescription", " SEO description ");
     form.set("ogImageId", " media-123 ");
@@ -22,6 +23,7 @@ describe("admin post model", () => {
       title: "My Post",
       excerpt: "Short summary",
       contentMarkdown: "## Intro",
+      contentHtmlSanitized: "<h2>Intro</h2><p>Body</p>",
       status: "published",
       seoTitle: "SEO title",
       seoDescription: "SEO description",

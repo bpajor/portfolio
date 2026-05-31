@@ -113,6 +113,7 @@ test.describe("public website", () => {
       title: "Admin E2E Post",
       excerpt: "Published from the admin panel.",
       contentMarkdown: "## Intro\n\nPublished body.",
+      contentHtmlSanitized: "<h2>Intro</h2><p><strong>Published body.</strong></p>",
       status: "published",
       publishedAt: "2026-05-05T10:00:00Z",
       ogImageId: "media-hero",
@@ -143,7 +144,8 @@ test.describe("public website", () => {
     await expect(postImage).toHaveAttribute("src", /\/api\/media\/media-hero/);
     await expect(postImage).not.toHaveClass(/object-cover/);
     await expect(postImage).not.toHaveClass(/aspect-\[16\/9\]/);
-    await expect(page.getByText("Published body.")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Intro" })).toBeVisible();
+    await expect(page.locator("article strong").filter({ hasText: "Published body." })).toBeVisible();
   });
 
   test("does not flash static placeholder posts while API posts load", async ({ page }) => {
