@@ -109,3 +109,26 @@ What I should have done:
 Working rule:
 
 - Live E2E through tunnels must model browser security rules for the tunnel origin. If the tunnel is HTTP but production/staging uses Secure cookies, assert the API contract separately from browser navigation, or run that browser-auth assertion against HTTPS.
+
+## 2026-05-31 - Rich editor migration left old E2E selectors behind
+
+What happened:
+
+- Replacing the Markdown textarea with a Tiptap editor passed the targeted local publish test, but staging failed because a live E2E still waited for `getByLabel("Markdown")`.
+- The local helper also typed too quickly through a toolbar-driven state change and intermittently dropped the first character of the heading.
+
+Why it happened:
+
+- I updated the test closest to the changed form, but did not audit every admin/live test that still depended on the old authoring widget.
+- I treated a passing targeted test as enough confidence even though the UI control had changed across the broader admin surface.
+- The typing helper depended on focus timing after a toolbar click instead of using a stable editor interaction path.
+
+What I should have done:
+
+- Search all E2E suites for the removed label or old widget contract before pushing.
+- Run the full relevant admin E2E suite after replacing a central form control.
+- Prefer deterministic editor helpers, such as keyboard shortcuts plus sequential typing, when testing rich text behavior.
+
+Working rule:
+
+- When replacing an input widget, audit all tests and live flows that name or operate on the old widget. A targeted test is not enough; run the full affected surface and make rich editor helpers resilient to focus and timing.
