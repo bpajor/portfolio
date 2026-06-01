@@ -358,6 +358,56 @@ jobs:
           status="$(curl -sS -o /dev/null -w '%{http_code}' "$STAGING_BASE_URL/mcp")"
           test "$status" = "401"
 
+      - name: Read staging MCP smoke tokens
+        env:
+          APP_DIR: ${{ secrets.APP_DIR }}
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+          GCP_VM_NAME: ${{ vars.GCP_VM_NAME }}
+          GCP_VM_ZONE: ${{ vars.GCP_VM_ZONE }}
+        run: |
+          set -euo pipefail
+          tokens_command=$(cat <<EOF
+          set -euo pipefail
+          cd "$APP_DIR/deploy/compose"
+          sudo -u portfolio awk '
+            /^MCP_BEARER_TOKEN=/ { read_token = substr(\$0, index(\$0, "=") + 1) }
+            /^MCP_ADMIN_BEARER_TOKEN=/ { admin_token = substr(\$0, index(\$0, "=") + 1) }
+            END {
+              if (read_token == "" || admin_token == "" || read_token == admin_token) exit 1
+              print read_token
+              print admin_token
+            }
+          ' .env
+          EOF
+          )
+
+          tokens="$(gcloud compute ssh "$GCP_VM_NAME" \
+            --project "$GCP_PROJECT_ID" \
+            --zone "$GCP_VM_ZONE" \
+            --tunnel-through-iap \
+            --quiet \
+            --command "$tokens_command")"
+
+          read_token="$(printf '%s\n' "$tokens" | sed -n '1p' | tr -d '\r')"
+          admin_token="$(printf '%s\n' "$tokens" | sed -n '2p' | tr -d '\r')"
+          test -n "$read_token"
+          test -n "$admin_token"
+          test "$read_token" != "$admin_token"
+          echo "::add-mask::$read_token"
+          echo "::add-mask::$admin_token"
+          echo "MCP_SMOKE_READ_TOKEN=$read_token" >> "$GITHUB_ENV"
+          echo "MCP_SMOKE_ADMIN_TOKEN=$admin_token" >> "$GITHUB_ENV"
+
+      - name: Setup Go for MCP smoke
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.x"
+          cache-dependency-path: apps/mcp/go.sum
+
+      - name: Staging MCP smoke tests
+        working-directory: apps/mcp
+        run: MCP_SMOKE_BASE_URL="$STAGING_BASE_URL" go run ./cmd/mcp-smoke
+
       - name: Create staging admin E2E session
         env:
           APP_DIR: ${{ secrets.APP_DIR }}

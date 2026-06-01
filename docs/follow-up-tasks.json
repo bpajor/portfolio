@@ -158,7 +158,7 @@
     {
       "id": "admin-projects-crud",
       "title": "Implement admin projects CRUD",
-      "status": "pending",
+      "status": "completed",
       "priority": "medium",
       "goal": "Manage portfolio projects from admin instead of static site data.",
       "scope": [
@@ -179,6 +179,12 @@
         "API integration tests for project CRUD.",
         "Playwright E2E for create, edit, and archive project.",
         "Public E2E for project visibility."
+      ],
+      "notes": [
+        "Admin projects now support list, create, edit, and archive flows.",
+        "Public project pages load API-backed projects with static fallback.",
+        "SEO and sitemap project surfaces can include API-backed projects.",
+        "Playwright admin coverage includes create, edit, and archive project flow."
       ]
     },
     {
@@ -279,7 +285,7 @@
     {
       "id": "mcp-end-to-end-validation",
       "title": "Test MCP behavior end to end",
-      "status": "pending",
+      "status": "completed",
       "priority": "high",
       "goal": "Verify that the deployed MCP service works for real clients while preserving token protection and tool boundaries.",
       "scope": [
@@ -303,6 +309,12 @@
         "Staging MCP smoke test using the deployed /mcp endpoint.",
         "Negative auth tests for missing, invalid, and read-only tokens.",
         "Manual verification checklist for staging and production."
+      ],
+      "notes": [
+        "Deploy staging runs apps/mcp/cmd/mcp-smoke through the IAP-backed staging tunnel.",
+        "The smoke client checks missing and invalid bearer token rejection, read-token tool access, read-token write rejection, admin-token initialization, and dangerous tool absence.",
+        "The smoke client probes admin-tool validation without creating a draft post, so repeated deploys do not leave MCP smoke content behind.",
+        "Production smoke keeps the public /mcp missing-token protection check through the origin tunnel."
       ]
     }
   ]
