@@ -132,3 +132,24 @@ What I should have done:
 Working rule:
 
 - When replacing an input widget, audit all tests and live flows that name or operate on the old widget. A targeted test is not enough; run the full affected surface and make rich editor helpers resilient to focus and timing.
+
+## 2026-06-01 - Rich editor image insertion raced React state in CI
+
+What happened:
+
+- The inline image E2E passed locally, but CI submitted HTML without the `<img>` and with later field text appended to the editor content.
+- The test selected an inline image and immediately clicked `Insert image`; in CI the click could run before React had committed the selected image state.
+
+Why it happened:
+
+- I treated `selectOption` as proof that the component's derived React state was already ready for the next click.
+- The test asserted only the final submitted payload, so the failure surfaced late and made it harder to tell whether selection, insertion, or form submission was wrong.
+
+What I should have done:
+
+- Make the component action read the current control value, not only delayed derived state, when the next action depends on the same control.
+- Have the E2E wait for the button to be enabled and for the inline image to appear in the editor before moving to later form fields.
+
+Working rule:
+
+- For rich editor controls that combine selection plus action, synchronize on visible UI state before continuing. Component handlers should not rely solely on recently updated React state when the current DOM control value is the source of truth.

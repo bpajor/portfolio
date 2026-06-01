@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { Editor, EditorContent, useEditor } from "@tiptap/react";
 import Image from "@tiptap/extension-image";
@@ -53,6 +53,7 @@ function setLink(editor: Editor) {
 }
 
 export function RichPostEditor({ initialMarkdown = "", initialHtml = "", media = [] }: RichPostEditorProps) {
+  const imageSelectRef = useRef<HTMLSelectElement>(null);
   const [markdown, setMarkdown] = useState(initialMarkdown);
   const [html, setHtml] = useState(initialHtml);
   const [selectedImageId, setSelectedImageId] = useState("");
@@ -95,10 +96,12 @@ export function RichPostEditor({ initialMarkdown = "", initialHtml = "", media =
   const selectedImage = media.find((item) => item.id === selectedImageId);
 
   function insertSelectedImage() {
-    if (!editor || !selectedImage) {
+    const selectedId = imageSelectRef.current?.value ?? selectedImageId;
+    const image = media.find((item) => item.id === selectedId);
+    if (!editor || !image) {
       return;
     }
-    editor.chain().focus().setImage({ src: selectedImage.url, alt: selectedImage.altText }).run();
+    editor.chain().focus().setImage({ src: image.url, alt: image.altText }).run();
   }
 
   return (
@@ -148,6 +151,7 @@ export function RichPostEditor({ initialMarkdown = "", initialHtml = "", media =
           <label className="flex min-w-48 items-center gap-2 text-xs text-slate-300">
             Inline image
             <select
+              ref={imageSelectRef}
               value={selectedImageId}
               onChange={(event) => setSelectedImageId(event.target.value)}
               disabled={media.length === 0}
