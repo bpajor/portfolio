@@ -16,7 +16,7 @@ test.describe("admin surface", () => {
     ]);
   }
 
-  async function writeRichArticle(page: Page) {
+  async function writeRichArticle(page: Page, options: { insertImage?: boolean } = {}) {
     const editor = page.getByRole("textbox", { name: "Article editor" });
     await editor.click();
     await page.keyboard.press("Control+Alt+2");
@@ -25,6 +25,10 @@ test.describe("admin surface", () => {
     await editor.press("Control+B");
     await editor.pressSequentially("Published body.", { delay: 10 });
     await editor.press("Control+B");
+    if (options.insertImage) {
+      await page.getByLabel("Inline image").selectOption("media-hero");
+      await page.getByRole("button", { name: "Insert image" }).click();
+    }
   }
 
   test("requires login before publishing workflows", async ({ page }) => {
@@ -176,7 +180,7 @@ test.describe("admin surface", () => {
     await page.getByRole("textbox", { name: "Title", exact: true }).fill("Admin E2E Post");
     await page.getByLabel("Slug").fill("admin-e2e-post");
     await page.getByLabel("Excerpt").fill("Published from the admin panel.");
-    await writeRichArticle(page);
+    await writeRichArticle(page, { insertImage: true });
     await page.getByRole("textbox", { name: "SEO title", exact: true }).fill("Admin E2E Post");
     await page.getByLabel("SEO description").fill("Published from the admin panel.");
     await page.getByLabel("Open Graph image").selectOption("media-hero");
@@ -195,6 +199,7 @@ test.describe("admin surface", () => {
     expect(submittedPost.contentMarkdown).toContain("## Intro");
     expect(submittedPost.contentHtmlSanitized).toContain("<h2>Intro</h2>");
     expect(submittedPost.contentHtmlSanitized).toContain("<strong>Published body.</strong>");
+    expect(submittedPost.contentHtmlSanitized).toContain(`<img src="/api/media/media-hero" alt="Admin E2E hero image">`);
   });
 
   test("keeps the selected Open Graph image when editing a post", async ({ page }) => {
@@ -215,6 +220,7 @@ test.describe("admin surface", () => {
           title: "Admin E2E Post",
           excerpt: "Published from the admin panel.",
           contentMarkdown: "## Intro\n\nPublished body.",
+          contentHtmlSanitized: `<h2>Intro</h2><p>Published body.</p><img src="/api/media/media-hero" alt="Admin E2E hero image">`,
           status: "published",
           publishedAt: "2026-05-05T10:00:00Z",
           seoTitle: "Admin E2E Post",
@@ -248,6 +254,7 @@ test.describe("admin surface", () => {
     await page.goto("/admin/posts/post-123", { waitUntil: "domcontentloaded" });
     const imageSelect = page.getByLabel("Open Graph image");
     await expect(imageSelect).toHaveValue("media-hero");
+    await expect(page.getByRole("img", { name: "Admin E2E hero image" })).toBeVisible();
 
     releaseMedia();
     await expect(imageSelect).toContainText("hero.png - Admin E2E hero image");
