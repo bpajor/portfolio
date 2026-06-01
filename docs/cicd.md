@@ -108,13 +108,14 @@ Flow:
 6. Run smoke checks against staging:
    - `/api/healthz` must return success.
    - `/mcp` must reject anonymous access with `401`.
-7. Run Playwright E2E checks against the deployed staging stack through the tunnel.
-8. Run Terraform plan with the shared GCS state and publish the plan in the deploy run summary and artifacts.
-9. Wait for `production` environment approval after reviewing staging checks and the Terraform plan output from the same workflow run.
-10. Build production Docker images on the GitHub runner and upload the image archive to the VM through IAP.
-11. Create a best-effort PostgreSQL backup on production.
-12. Deploy `main` to production over IAP-backed SSH with `docker load` and `docker compose up --no-build`.
-13. Run production smoke checks through an IAP tunnel to the origin Caddy listener. This avoids false negatives from Cloudflare bot challenges against GitHub-hosted `curl` while still verifying the deployed production stack with the real production host and TLS certificate.
+7. Run MCP smoke checks against staging through the tunnel with read/admin bearer tokens loaded from the VM environment.
+8. Run Playwright E2E checks against the deployed staging stack through the tunnel.
+9. Run Terraform plan with the shared GCS state and publish the plan in the deploy run summary and artifacts.
+10. Wait for `production` environment approval after reviewing staging checks and the Terraform plan output from the same workflow run.
+11. Build production Docker images on the GitHub runner and upload the image archive to the VM through IAP.
+12. Create a best-effort PostgreSQL backup on production.
+13. Deploy `main` to production over IAP-backed SSH with `docker load` and `docker compose up --no-build`.
+14. Run production smoke checks through an IAP tunnel to the origin Caddy listener. This avoids false negatives from Cloudflare bot challenges against GitHub-hosted `curl` while still verifying the deployed production stack with the real production host and TLS certificate.
 
 ## VM Requirements
 
@@ -201,6 +202,7 @@ Before approving production:
 - Staging deployment completed successfully.
 - Staging `/api/healthz` passed.
 - Staging `/mcp` returned `401` without a bearer token.
+- Staging MCP smoke passed with read/admin bearer tokens.
 - Staging Playwright E2E passed against the deployed URL.
 - Terraform plan output is visible in the deploy run and has been reviewed.
 - The change does not require manual database repair.
