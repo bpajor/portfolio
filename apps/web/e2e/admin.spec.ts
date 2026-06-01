@@ -27,7 +27,10 @@ test.describe("admin surface", () => {
     await editor.press("Control+B");
     if (options.insertImage) {
       await page.getByLabel("Inline image").selectOption("media-hero");
-      await page.getByRole("button", { name: "Insert image" }).click();
+      const insertImageButton = page.getByRole("button", { name: "Insert image" });
+      await expect(insertImageButton).toBeEnabled();
+      await insertImageButton.click();
+      await expect(page.getByRole("img", { name: "Admin E2E hero image" })).toBeVisible();
     }
   }
 
