@@ -3,13 +3,16 @@
 import { useState } from "react";
 import type { ReactNode } from "react";
 import { Editor, EditorContent, useEditor } from "@tiptap/react";
+import Image from "@tiptap/extension-image";
 import StarterKit from "@tiptap/starter-kit";
 import { Markdown } from "@tiptap/markdown";
-import { Bold, Code, Heading2, Heading3, Italic, Link2, List, ListOrdered, Quote, Redo2, Undo2, Unlink, Underline as UnderlineIcon } from "lucide-react";
+import { Bold, Code, Heading2, Heading3, Image as ImageIcon, Italic, Link2, List, ListOrdered, Quote, Redo2, Undo2, Unlink, Underline as UnderlineIcon } from "lucide-react";
+import type { AdminMediaItem } from "../media/media-model";
 
 type RichPostEditorProps = {
   initialMarkdown?: string;
   initialHtml?: string;
+  media?: AdminMediaItem[];
 };
 
 type ToolbarButtonProps = {
@@ -49,11 +52,15 @@ function setLink(editor: Editor) {
   editor.chain().focus().extendMarkRange("link").setLink({ href: url.trim(), target: "_blank", rel: "noopener noreferrer" }).run();
 }
 
-export function RichPostEditor({ initialMarkdown = "", initialHtml = "" }: RichPostEditorProps) {
+export function RichPostEditor({ initialMarkdown = "", initialHtml = "", media = [] }: RichPostEditorProps) {
   const [markdown, setMarkdown] = useState(initialMarkdown);
   const [html, setHtml] = useState(initialHtml);
+  const [selectedImageId, setSelectedImageId] = useState("");
   const editor = useEditor({
     extensions: [
+      Image.configure({
+        allowBase64: false
+      }),
       StarterKit.configure({
         heading: {
           levels: [2, 3, 4]
@@ -85,6 +92,14 @@ export function RichPostEditor({ initialMarkdown = "", initialHtml = "" }: RichP
       setHtml(nextEditor.getHTML());
     }
   });
+  const selectedImage = media.find((item) => item.id === selectedImageId);
+
+  function insertSelectedImage() {
+    if (!editor || !selectedImage) {
+      return;
+    }
+    editor.chain().focus().setImage({ src: selectedImage.url, alt: selectedImage.altText }).run();
+  }
 
   return (
     <div className="grid gap-2">
@@ -130,10 +145,27 @@ export function RichPostEditor({ initialMarkdown = "", initialHtml = "" }: RichP
           <ToolbarButton label="Remove link" disabled={!editor?.isActive("link")} onClick={() => editor?.chain().focus().unsetLink().run()}>
             <Unlink size={16} aria-hidden="true" />
           </ToolbarButton>
+          <label className="flex min-w-48 items-center gap-2 text-xs text-slate-300">
+            Inline image
+            <select
+              value={selectedImageId}
+              onChange={(event) => setSelectedImageId(event.target.value)}
+              disabled={media.length === 0}
+              className="h-9 min-w-40 rounded-md border border-white/10 bg-slate-950 px-2 text-sm text-slate-100 outline-none focus:border-sky-300/50 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <option value="">Select image</option>
+              {media.map((item) => (
+                <option key={item.id} value={item.id}>{item.filename} - {item.altText}</option>
+              ))}
+            </select>
+          </label>
+          <ToolbarButton label="Insert image" disabled={!selectedImage || !editor} onClick={insertSelectedImage}>
+            <ImageIcon size={16} aria-hidden="true" />
+          </ToolbarButton>
         </div>
         <EditorContent
           editor={editor}
-          className="[&_.ProseMirror>*+*]:mt-4 [&_.ProseMirror_blockquote]:border-l-2 [&_.ProseMirror_blockquote]:border-sky-300/50 [&_.ProseMirror_blockquote]:pl-4 [&_.ProseMirror_code]:rounded [&_.ProseMirror_code]:bg-slate-900 [&_.ProseMirror_code]:px-1 [&_.ProseMirror_h2]:text-2xl [&_.ProseMirror_h2]:font-semibold [&_.ProseMirror_h2]:text-white [&_.ProseMirror_h3]:text-xl [&_.ProseMirror_h3]:font-semibold [&_.ProseMirror_h3]:text-white [&_.ProseMirror_ol]:list-decimal [&_.ProseMirror_ol]:pl-6 [&_.ProseMirror_pre]:overflow-x-auto [&_.ProseMirror_pre]:rounded-md [&_.ProseMirror_pre]:bg-slate-900 [&_.ProseMirror_pre]:p-4 [&_.ProseMirror_ul]:list-disc [&_.ProseMirror_ul]:pl-6"
+          className="[&_.ProseMirror>*+*]:mt-4 [&_.ProseMirror_blockquote]:border-l-2 [&_.ProseMirror_blockquote]:border-sky-300/50 [&_.ProseMirror_blockquote]:pl-4 [&_.ProseMirror_code]:rounded [&_.ProseMirror_code]:bg-slate-900 [&_.ProseMirror_code]:px-1 [&_.ProseMirror_h2]:text-2xl [&_.ProseMirror_h2]:font-semibold [&_.ProseMirror_h2]:text-white [&_.ProseMirror_h3]:text-xl [&_.ProseMirror_h3]:font-semibold [&_.ProseMirror_h3]:text-white [&_.ProseMirror_img]:mx-auto [&_.ProseMirror_img]:max-h-[60vh] [&_.ProseMirror_img]:max-w-full [&_.ProseMirror_img]:rounded-md [&_.ProseMirror_img]:border [&_.ProseMirror_img]:border-white/10 [&_.ProseMirror_ol]:list-decimal [&_.ProseMirror_ol]:pl-6 [&_.ProseMirror_pre]:overflow-x-auto [&_.ProseMirror_pre]:rounded-md [&_.ProseMirror_pre]:bg-slate-900 [&_.ProseMirror_pre]:p-4 [&_.ProseMirror_ul]:list-disc [&_.ProseMirror_ul]:pl-6"
         />
       </div>
       <input type="hidden" name="contentMarkdown" value={markdown} />

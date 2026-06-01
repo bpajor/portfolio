@@ -184,6 +184,9 @@ func TestHelpers(t *testing.T) {
 	if got := sanitizedHTML(`<h2>Intro</h2><p>Hello <strong>reader</strong><script>alert(1)</script></p>`); strings.Contains(got, "<script>") || !strings.Contains(got, "<h2>Intro</h2>") || !strings.Contains(got, "<strong>reader</strong>") {
 		t.Fatalf("sanitizedHTML sanitized rich content incorrectly: %q", got)
 	}
+	if got := sanitizedHTML(`<p>Image</p><img src="/api/media/00000000-0000-0000-0000-000000000001" alt="Inline image" onerror="alert(1)"><img src="https://evil.example/image.png" alt="External">`); !strings.Contains(got, `src="/api/media/00000000-0000-0000-0000-000000000001"`) || !strings.Contains(got, `alt="Inline image"`) || strings.Contains(got, "onerror") || strings.Contains(got, "evil.example") {
+		t.Fatalf("sanitizedHTML sanitized inline images incorrectly: %q", got)
+	}
 	if got := sanitizedPostHTML("", "Hello <script>alert(1)</script>"); strings.Contains(got, "<script>") || !strings.Contains(got, "&lt;script&gt;") {
 		t.Fatalf("sanitizedPostHTML legacy fallback did not escape markdown: %q", got)
 	}

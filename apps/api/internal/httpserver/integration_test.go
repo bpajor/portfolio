@@ -335,7 +335,7 @@ func TestAPIIntegrationWithPostgres(t *testing.T) {
 		"title":"Integration Published Post",
 		"excerpt":"Created through the admin API.",
 		"contentMarkdown":"## Intro\n\nThis post came from an integration test.",
-		"contentHtmlSanitized":"<h2>Intro</h2><p>This post came from an <strong>integration test</strong>.</p><script>alert(1)</script>",
+		"contentHtmlSanitized":"<h2>Intro</h2><p>This post came from an <strong>integration test</strong>.</p><img src=\"/api/media/`+createdMedia.ID+`\" alt=\"Integration media alt\" onerror=\"alert(1)\"><img src=\"https://evil.example/image.png\" alt=\"External\"><script>alert(1)</script>",
 		"status":"published",
 		"seoTitle":"Integration Published Post",
 		"seoDescription":"Created through the admin API.",
@@ -404,7 +404,7 @@ func TestAPIIntegrationWithPostgres(t *testing.T) {
 	if post.Slug != slug || post.Status != "published" || !strings.Contains(post.ContentMarkdown, "integration test") {
 		t.Fatalf("unexpected public post = %#v", post)
 	}
-	if !strings.Contains(post.ContentHTMLSanitized, "<strong>integration test</strong>") || strings.Contains(post.ContentHTMLSanitized, "<script>") {
+	if !strings.Contains(post.ContentHTMLSanitized, "<strong>integration test</strong>") || !strings.Contains(post.ContentHTMLSanitized, `src="/api/media/`+createdMedia.ID+`"`) || !strings.Contains(post.ContentHTMLSanitized, `alt="Integration media alt"`) || strings.Contains(post.ContentHTMLSanitized, "<script>") || strings.Contains(post.ContentHTMLSanitized, "onerror") || strings.Contains(post.ContentHTMLSanitized, "evil.example") {
 		t.Fatalf("unexpected public post HTML = %q", post.ContentHTMLSanitized)
 	}
 

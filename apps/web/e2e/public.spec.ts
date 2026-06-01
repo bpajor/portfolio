@@ -113,7 +113,7 @@ test.describe("public website", () => {
       title: "Admin E2E Post",
       excerpt: "Published from the admin panel.",
       contentMarkdown: "## Intro\n\nPublished body.",
-      contentHtmlSanitized: "<h2>Intro</h2><p><strong>Published body.</strong></p>",
+      contentHtmlSanitized: `<h2>Intro</h2><p><strong>Published body.</strong></p><img src="/api/media/media-inline" alt="Inline article image">`,
       status: "published",
       publishedAt: "2026-05-05T10:00:00Z",
       ogImageId: "media-hero",
@@ -134,6 +134,9 @@ test.describe("public website", () => {
     await page.route("**/api/media/media-hero", async (route) => {
       await route.fulfill({ status: 200, contentType: "image/png", body: pngPixel });
     });
+    await page.route("**/api/media/media-inline", async (route) => {
+      await route.fulfill({ status: 200, contentType: "image/png", body: pngPixel });
+    });
 
     await page.goto("/blog");
     await expect(page.getByRole("link", { name: /admin e2e post/i })).toBeVisible();
@@ -146,6 +149,9 @@ test.describe("public website", () => {
     await expect(postImage).not.toHaveClass(/aspect-\[16\/9\]/);
     await expect(page.getByRole("heading", { name: "Intro" })).toBeVisible();
     await expect(page.locator("article strong").filter({ hasText: "Published body." })).toBeVisible();
+    const inlineImage = page.getByRole("img", { name: "Inline article image" });
+    await expect(inlineImage).toHaveAttribute("src", /\/api\/media\/media-inline/);
+    await expect(inlineImage).not.toHaveClass(/object-cover/);
   });
 
   test("does not flash static placeholder posts while API posts load", async ({ page }) => {

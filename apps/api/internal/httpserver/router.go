@@ -1446,10 +1446,16 @@ func sanitizedPostHTML(htmlContent string, markdownFallback string) string {
 }
 
 func sanitizedHTML(htmlContent string) string {
-	policy := bluemonday.UGCPolicy()
+	policy := bluemonday.NewPolicy()
 	policy.AllowElements("h2", "h3", "h4", "p", "strong", "em", "u", "s", "ul", "ol", "li", "blockquote", "pre", "code", "br", "hr")
-	policy.AllowAttrs("target").OnElements("a")
-	policy.AllowAttrs("rel").OnElements("a")
+	policy.AllowAttrs("href").OnElements("a")
+	policy.AllowAttrs("target").Matching(regexp.MustCompile(`^_blank$`)).OnElements("a")
+	policy.AllowAttrs("rel").Matching(regexp.MustCompile(`^[a-zA-Z -]+$`)).OnElements("a")
+	policy.AllowURLSchemes("http", "https", "mailto")
+	policy.AllowRelativeURLs(true)
+	policy.AllowElements("img")
+	policy.AllowAttrs("src").Matching(regexp.MustCompile(`^/api/media/[0-9a-fA-F-]+$`)).OnElements("img")
+	policy.AllowAttrs("alt", "title").OnElements("img")
 	return policy.Sanitize(htmlContent)
 }
 

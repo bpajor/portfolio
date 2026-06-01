@@ -95,7 +95,7 @@ export function BlogPostClient({ slug, initialPost }: { slug: string; initialPos
 
       {renderRichHtml ? (
         <div
-          className="mt-10 border-t border-white/10 pt-8 text-base leading-7 text-slate-300 [&>*+*]:mt-5 [&_a]:text-sky-300 [&_a]:underline [&_blockquote]:border-l-2 [&_blockquote]:border-sky-300/50 [&_blockquote]:pl-4 [&_blockquote]:text-slate-200 [&_code]:rounded [&_code]:bg-slate-900 [&_code]:px-1 [&_h2]:text-2xl [&_h2]:font-semibold [&_h2]:text-white [&_h3]:text-xl [&_h3]:font-semibold [&_h3]:text-white [&_li+li]:mt-2 [&_ol]:list-decimal [&_ol]:pl-6 [&_pre]:overflow-x-auto [&_pre]:rounded-md [&_pre]:bg-slate-900 [&_pre]:p-4 [&_strong]:text-white [&_ul]:list-disc [&_ul]:pl-6"
+          className="mt-10 border-t border-white/10 pt-8 text-base leading-7 text-slate-300 [&>*+*]:mt-5 [&_a]:text-sky-300 [&_a]:underline [&_blockquote]:border-l-2 [&_blockquote]:border-sky-300/50 [&_blockquote]:pl-4 [&_blockquote]:text-slate-200 [&_code]:rounded [&_code]:bg-slate-900 [&_code]:px-1 [&_h2]:text-2xl [&_h2]:font-semibold [&_h2]:text-white [&_h3]:text-xl [&_h3]:font-semibold [&_h3]:text-white [&_img]:mx-auto [&_img]:max-h-[72vh] [&_img]:max-w-full [&_img]:rounded-md [&_img]:border [&_img]:border-white/10 [&_li+li]:mt-2 [&_ol]:list-decimal [&_ol]:pl-6 [&_pre]:overflow-x-auto [&_pre]:rounded-md [&_pre]:bg-slate-900 [&_pre]:p-4 [&_strong]:text-white [&_ul]:list-disc [&_ul]:pl-6"
           dangerouslySetInnerHTML={{ __html: post.contentHtmlSanitized ?? "" }}
         />
       ) : (
