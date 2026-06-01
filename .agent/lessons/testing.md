@@ -153,3 +153,24 @@ What I should have done:
 Working rule:
 
 - For rich editor controls that combine selection plus action, synchronize on visible UI state before continuing. Component handlers should not rely solely on recently updated React state when the current DOM control value is the source of truth.
+
+## 2026-06-01 - Live staging redirect assertions used local timing assumptions
+
+What happened:
+
+- The staging E2E created a post successfully through the deployed API, but failed while waiting for the client URL to change from `/admin/posts/new` to `/admin/posts/{id}`.
+- The API returned `201` with the created post id; the brittle part was the default 5-second URL assertion after a client-side router transition over the IAP/localhost staging tunnel.
+
+Why it happened:
+
+- I treated a deployed staging browser flow like a local mocked browser flow and left the default URL assertion timeout in place.
+- The test encoded a timing assumption rather than the real contract: the API create must succeed, then the UI should reach the edit page, but deployed tunnels can make client navigation slower.
+
+What I should have done:
+
+- Give live deployed browser flows an explicit timeout budget where they depend on real network, proxy, and client-side navigation.
+- Keep the assertion on the user-visible redirect, but size it for the environment and set the test timeout accordingly.
+
+Working rule:
+
+- Live staging tests should keep contract assertions, but must not inherit local timing defaults for proxy-backed client transitions. When the API response is already proven, wait for the related UI transition with an explicit deployed-environment timeout.

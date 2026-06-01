@@ -67,6 +67,8 @@ test.describe("admin live staging", () => {
   });
 
   test("creates updates and deletes a post against the deployed API", async ({ page }) => {
+    test.setTimeout(60_000);
+
     let postId: string | undefined;
 
     await page.context().addCookies([
@@ -104,7 +106,7 @@ test.describe("admin live staging", () => {
 
       const created = (await createResponse.json()) as { id: string };
       postId = created.id;
-      await expect(page).toHaveURL(new RegExp(`/admin/posts/${postId}$`));
+      await expect(page).toHaveURL(new RegExp(`/admin/posts/${postId}$`), { timeout: 20_000 });
 
       await page.getByRole("textbox", { name: "Title", exact: true }).fill(updatedTitle);
       const [updateResponse] = await Promise.all([
