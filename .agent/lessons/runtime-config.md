@@ -168,3 +168,25 @@ What I should have done:
 Working rule:
 
 - If a human needs to use a credential in an external client, provide an application-level management workflow. VM/env inspection is acceptable for emergency debugging, not for normal product operation.
+
+## 2026-06-02 - Deployment migrations must cover existing databases, not only first boot
+
+What happened:
+
+- A new schema migration added MCP token storage, but the Compose `migrate` service skipped schema work whenever the original `profile` table already existed.
+- The release script recreated application containers without explicitly rerunning the one-shot migration service, so staging could run new MCP code against an old database schema.
+
+Why it happened:
+
+- I verified migration tests and CI integration setup, but did not inspect the production/staging migration path as a separate upgrade path.
+- I treated Compose `depends_on` for a completed one-shot service as enough, even though releases recreate selected app services and may reuse an old completed migrator container.
+
+What I should have done:
+
+- For every schema change, test both fresh database bootstrap and existing deployment upgrade behavior.
+- Ensure the release script explicitly runs migrations before restarting services that depend on the new schema.
+- Make one-shot migration services track applied schema versions instead of using a single sentinel table as a proxy for all migrations.
+
+Working rule:
+
+- Schema deploys must prove the upgrade path for already-running environments. A migration runner should be idempotent, version-aware, and invoked directly by the release workflow before dependent services restart.

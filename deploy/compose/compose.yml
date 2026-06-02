@@ -145,12 +145,43 @@ services:
       - sh
       - -ec
       - |
-        if psql -h postgres -U "$$POSTGRES_USER" -d "$$POSTGRES_DB" -tAc "SELECT to_regclass('public.profile')" | grep -q profile; then
-          echo "database schema already exists; skipping initial migration"
-        else
-          sed '/-- +goose Down/,$$d' /migrations/00001_initial_schema.sql | \
+        psql -v ON_ERROR_STOP=1 -h postgres -U "$$POSTGRES_USER" -d "$$POSTGRES_DB" \
+          -c "CREATE TABLE IF NOT EXISTS schema_migrations (version TEXT PRIMARY KEY, applied_at TIMESTAMPTZ NOT NULL DEFAULT now())"
+
+        for migration in /migrations/[0-9]*.sql; do
+          if ! grep -q -- "-- +goose Up" "$$migration" || ! grep -q -- "-- +goose Down" "$$migration"; then
+            continue
+          fi
+
+          version="$$(basename "$$migration")"
+          if psql -h postgres -U "$$POSTGRES_USER" -d "$$POSTGRES_DB" -tAc "SELECT 1 FROM schema_migrations WHERE version = '$$version'" | grep -q 1; then
+            echo "$$version already applied; skipping"
+            continue
+          fi
+
+          if [ "$$version" = "00001_initial_schema.sql" ] &&
+            psql -h postgres -U "$$POSTGRES_USER" -d "$$POSTGRES_DB" -tAc "SELECT to_regclass('public.profile')" | grep -q profile; then
+            echo "database schema already exists; marking $$version as applied"
+            psql -v ON_ERROR_STOP=1 -h postgres -U "$$POSTGRES_USER" -d "$$POSTGRES_DB" \
+              -c "INSERT INTO schema_migrations (version) VALUES ('$$version') ON CONFLICT (version) DO NOTHING"
+            continue
+          fi
+
+          if [ "$$version" = "00003_mcp_tokens.sql" ] &&
+            psql -h postgres -U "$$POSTGRES_USER" -d "$$POSTGRES_DB" -tAc "SELECT to_regclass('public.mcp_tokens')" | grep -q mcp_tokens; then
+            echo "mcp_tokens table already exists; marking $$version as applied"
+            psql -v ON_ERROR_STOP=1 -h postgres -U "$$POSTGRES_USER" -d "$$POSTGRES_DB" \
+              -c "INSERT INTO schema_migrations (version) VALUES ('$$version') ON CONFLICT (version) DO NOTHING"
+            continue
+          fi
+
+          echo "applying $$version"
+          sed '/-- +goose Down/,$$d' "$$migration" | sed '/-- +goose Up/d' | \
             psql -v ON_ERROR_STOP=1 -h postgres -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"
-        fi
+          psql -v ON_ERROR_STOP=1 -h postgres -U "$$POSTGRES_USER" -d "$$POSTGRES_DB" \
+            -c "INSERT INTO schema_migrations (version) VALUES ('$$version') ON CONFLICT (version) DO NOTHING"
+        done
+
         psql -v ON_ERROR_STOP=1 -h postgres -U "$$POSTGRES_USER" -d "$$POSTGRES_DB" \
           -f /migrations/00002_seed_initial_posts.sql
     networks:
