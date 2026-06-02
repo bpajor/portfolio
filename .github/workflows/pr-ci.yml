@@ -309,8 +309,13 @@ jobs:
 
       - name: Apply schema
         run: |
-          sed '/-- +goose Down/,$d' db/migrations/00001_initial_schema.sql |
-            docker compose -f compose.dev.yml exec -T postgres psql -v ON_ERROR_STOP=1 -U portfolio -d portfolio
+          for migration in db/migrations/[0-9]*.sql; do
+            if grep -q -- "-- +goose Up" "$migration" && grep -q -- "-- +goose Down" "$migration"; then
+              sed '/-- +goose Down/,$d' "$migration" |
+                sed '/-- +goose Up/d' |
+                docker compose -f compose.dev.yml exec -T postgres psql -v ON_ERROR_STOP=1 -U portfolio -d portfolio
+            fi
+          done
 
       - name: API integration tests
         if: ${{ needs.changes.outputs.database == 'true' || needs.changes.outputs.api == 'true' }}

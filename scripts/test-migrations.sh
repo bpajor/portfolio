@@ -6,6 +6,13 @@ container="${POSTGRES_TEST_CONTAINER:-portfolio-postgres-migration-test}"
 user="${POSTGRES_USER:-portfolio}"
 password="${POSTGRES_PASSWORD:-portfolio}"
 database="${POSTGRES_DB:-portfolio}"
+schema_migrations=()
+
+for migration in "$repo_root"/db/migrations/[0-9]*.sql; do
+  if grep -q -- "-- +goose Up" "$migration" && grep -q -- "-- +goose Down" "$migration"; then
+    schema_migrations+=("$migration")
+  fi
+done
 
 cleanup() {
   docker rm -f "$container" >/dev/null 2>&1 || true
@@ -36,8 +43,11 @@ if [[ "$ready" -ne 1 ]]; then
   exit 1
 fi
 
-sed '/-- +goose Down/,$d' "$repo_root/db/migrations/00001_initial_schema.sql" |
-  docker exec -i "$container" psql -v ON_ERROR_STOP=1 -U "$user" -d "$database" >/dev/null
+for migration in "${schema_migrations[@]}"; do
+  sed '/-- +goose Down/,$d' "$migration" |
+    sed '/-- +goose Up/d' |
+    docker exec -i "$container" psql -v ON_ERROR_STOP=1 -U "$user" -d "$database" >/dev/null
+done
 docker exec -i "$container" psql -v ON_ERROR_STOP=1 -U "$user" -d "$database" \
   -f /dev/stdin < "$repo_root/db/migrations/00002_seed_initial_posts.sql" >/dev/null
 docker exec -i "$container" psql -v ON_ERROR_STOP=1 -U "$user" -d "$database" \
@@ -48,14 +58,21 @@ if [[ "$schema_check" != "profile" ]]; then
   echo "Up migration did not create public.profile" >&2
   exit 1
 fi
+mcp_tokens_check="$(docker exec "$container" psql -tAc "SELECT to_regclass('public.mcp_tokens')" -U "$user" -d "$database" | tr -d '[:space:]')"
+if [[ "$mcp_tokens_check" != "mcp_tokens" ]]; then
+  echo "Up migrations did not create public.mcp_tokens" >&2
+  exit 1
+fi
 post_count="$(docker exec "$container" psql -tAc "SELECT count(*) FROM posts" -U "$user" -d "$database" | tr -d '[:space:]')"
 if [[ "$post_count" != "2" ]]; then
   echo "Seed migration post count = $post_count, want 2" >&2
   exit 1
 fi
 
-sed '1,/-- +goose Down/d' "$repo_root/db/migrations/00001_initial_schema.sql" |
-  docker exec -i "$container" psql -v ON_ERROR_STOP=1 -U "$user" -d "$database" >/dev/null
+for ((i=${#schema_migrations[@]}-1; i>=0; i--)); do
+  sed '1,/-- +goose Down/d' "${schema_migrations[$i]}" |
+    docker exec -i "$container" psql -v ON_ERROR_STOP=1 -U "$user" -d "$database" >/dev/null
+done
 
 schema_check="$(docker exec "$container" psql -tAc "SELECT to_regclass('public.profile')" -U "$user" -d "$database" | tr -d '[:space:]')"
 if [[ -n "$schema_check" ]]; then
