@@ -125,3 +125,46 @@ What I should have done:
 Working rule:
 
 - For generated configuration, validate the rendered artifact with the real parser or runtime before restart/apply. Template-looking correctness is weaker than parser-verified correctness.
+
+## 2026-06-02 - Docker disk usage can masquerade as random build failures
+
+What happened:
+
+- A Docker-based `sqlc` generation attempt failed with low-level `bus error` / `input/output error` symptoms after downloading and compiling a heavy Go toolchain.
+- Docker Desktop then got stuck while turning off, and the machine had several gigabytes of reclaimable Docker images and build cache.
+
+Why it happened:
+
+- I treated Docker as a disposable execution wrapper without first checking whether its image/cache footprint had grown large enough to threaten local disk space.
+- I also chose a compile-from-source container flow when a smaller prebuilt tool image would have reduced disk and build-cache pressure.
+
+What I should have done:
+
+- Check `docker system df` before and after heavy Docker builds, especially when the task downloads compilers, language toolchains, or large base images.
+- Prefer prebuilt purpose-specific tool images over compiling tools inside generic language images when the goal is just to run one generator.
+- If Docker reports low-level runtime, overlay, bus error, or I/O failures, inspect disk/cache pressure before retrying the same expensive command.
+
+Working rule:
+
+- Treat Docker disk usage as part of the local runtime health check. For Docker-heavy work, monitor `docker system df`, prune unused images/build cache when safe, and avoid repeated heavy retries until disk pressure has been ruled out.
+
+## 2026-06-02 - User-facing integration secrets need an app workflow
+
+What happened:
+
+- I suggested testing deployed MCP by retrieving bearer tokens from VM environment files.
+- That made the feature operationally awkward and contradicted the product shape: admins should be able to create and revoke MCP client credentials from the admin app.
+
+Why it happened:
+
+- I treated environment variables as the source of truth because they already existed for deploy smoke tests.
+- I did not distinguish bootstrap/runtime secrets from credentials that a real admin needs to issue to external clients.
+
+What I should have done:
+
+- Ask how an admin would create, copy, rotate, and revoke a token before calling the feature testable.
+- Keep env tokens only as a fallback or bootstrap path, then add application-managed token lifecycle for normal use.
+
+Working rule:
+
+- If a human needs to use a credential in an external client, provide an application-level management workflow. VM/env inspection is acceptable for emergency debugging, not for normal product operation.

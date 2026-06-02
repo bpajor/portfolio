@@ -105,6 +105,7 @@ func New(cfg config.Config, logger *slog.Logger, db *pgxpool.Pool, repo content.
 				r.Get("/projects/{id}", server.adminGetProject)
 				r.Get("/comments", server.adminListComments)
 				r.Get("/media", server.adminListMedia)
+				r.Get("/mcp/tokens", server.adminListMCPTokens)
 
 				r.Group(func(r chi.Router) {
 					r.Use(server.requireAdminCSRF)
@@ -118,6 +119,8 @@ func New(cfg config.Config, logger *slog.Logger, db *pgxpool.Pool, repo content.
 					r.Post("/media", server.adminUploadMedia)
 					r.Put("/media/{id}", server.adminUpdateMedia)
 					r.Delete("/media/{id}", server.adminDeleteMedia)
+					r.Post("/mcp/tokens", server.adminCreateMCPToken)
+					r.Delete("/mcp/tokens/{id}", server.adminRevokeMCPToken)
 				})
 			})
 		})

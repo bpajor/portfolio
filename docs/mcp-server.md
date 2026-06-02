@@ -20,7 +20,15 @@ All MCP requests require a bearer token:
 Authorization: Bearer <token>
 ```
 
-Tokens:
+Primary token management is done from the admin app:
+
+```text
+/admin/mcp
+```
+
+Create a `read` token for read-only MCP clients and an `admin` token only for clients that should be allowed to call admin tools. The plaintext token is shown once on creation, then only its metadata remains visible. Revoking a token immediately removes access for future MCP requests.
+
+Environment tokens remain a bootstrap/fallback path:
 
 - `MCP_BEARER_TOKEN` for read-only tools.
 - `MCP_ADMIN_BEARER_TOKEN` for admin tools.
@@ -64,7 +72,7 @@ cd apps/mcp
 
 ## Deployed Smoke Test
 
-Use the smoke client after a staging deploy or through a trusted tunnel to the deployed stack. Do not print or commit token values.
+Use the smoke client after a staging deploy or through a trusted tunnel to the deployed stack. Generate the tokens from `/admin/mcp` for the target environment. Do not print or commit token values.
 
 ```powershell
 $env:MCP_SMOKE_BASE_URL="https://staging-or-origin.example"
@@ -83,3 +91,25 @@ The smoke test verifies:
 - Dangerous generic tools such as shell, arbitrary file read/write, and SQL query tools are not exposed.
 
 The deploy workflow runs this against staging through the IAP-backed tunnel after the basic smoke checks and before the broader Playwright E2E suite. Production smoke keeps the public `/mcp` protection check and should not expose read/admin token values to public runners or logs.
+
+## Manual MCP Inspector Check
+
+Use the MCP Inspector or any streamable HTTP MCP client against the deployed endpoint:
+
+```text
+https://www.bpajor.dev/mcp
+```
+
+Set:
+
+```text
+Authorization: Bearer <token from /admin/mcp>
+```
+
+Expected behavior:
+
+- Without a token, `/mcp` returns `401`.
+- A `read` token can list and call read tools such as `get_profile`, `list_projects`, and `get_site_context`.
+- A `read` token cannot use admin tools.
+- An `admin` token can use explicit admin tools such as `create_draft_post`.
+- After revocation in `/admin/mcp`, the same token no longer authenticates.

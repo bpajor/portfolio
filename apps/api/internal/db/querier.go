@@ -16,12 +16,14 @@ type Querier interface {
 	AdminListAuditLog(ctx context.Context, arg AdminListAuditLogParams) ([]AuditLog, error)
 	AdminListComments(ctx context.Context, status NullCommentStatus) ([]AdminListCommentsRow, error)
 	AdminListContactMessages(ctx context.Context, status NullContactMessageStatus) ([]AdminListContactMessagesRow, error)
+	AdminListMCPTokens(ctx context.Context) ([]McpToken, error)
 	AdminListMedia(ctx context.Context) ([]Medium, error)
 	AdminListPosts(ctx context.Context) ([]AdminListPostsRow, error)
 	AdminListProjects(ctx context.Context) ([]Project, error)
 	CreateAdminUser(ctx context.Context, arg CreateAdminUserParams) (CreateAdminUserRow, error)
 	CreateAuditLog(ctx context.Context, arg CreateAuditLogParams) (AuditLog, error)
 	CreateContactMessage(ctx context.Context, arg CreateContactMessageParams) (CreateContactMessageRow, error)
+	CreateMCPToken(ctx context.Context, arg CreateMCPTokenParams) (McpToken, error)
 	CreateMedia(ctx context.Context, arg CreateMediaParams) (Medium, error)
 	CreatePendingComment(ctx context.Context, arg CreatePendingCommentParams) (CreatePendingCommentRow, error)
 	CreatePost(ctx context.Context, arg CreatePostParams) (Post, error)
@@ -30,6 +32,7 @@ type Querier interface {
 	DeleteMedia(ctx context.Context, id uuid.UUID) (Medium, error)
 	DeletePost(ctx context.Context, id uuid.UUID) error
 	DeletePostTags(ctx context.Context, postID uuid.UUID) error
+	GetActiveMCPTokenByHash(ctx context.Context, tokenHash string) (McpToken, error)
 	GetMedia(ctx context.Context, id uuid.UUID) (Medium, error)
 	GetProfile(ctx context.Context) (Profile, error)
 	GetProjectBySlug(ctx context.Context, slug string) (Project, error)
@@ -39,7 +42,9 @@ type Querier interface {
 	ListApprovedCommentsForPost(ctx context.Context, postID uuid.UUID) ([]ListApprovedCommentsForPostRow, error)
 	ListFeaturedProjects(ctx context.Context) ([]Project, error)
 	ListPublishedPosts(ctx context.Context) ([]ListPublishedPostsRow, error)
+	MarkMCPTokenUsed(ctx context.Context, id uuid.UUID) error
 	ModerateComment(ctx context.Context, arg ModerateCommentParams) (Comment, error)
+	RevokeMCPToken(ctx context.Context, id uuid.UUID) (McpToken, error)
 	RevokeSession(ctx context.Context, tokenHash string) error
 	RevokeSessionsByUserID(ctx context.Context, userID uuid.UUID) error
 	UpdateContactMessageStatus(ctx context.Context, arg UpdateContactMessageStatusParams) (UpdateContactMessageStatusRow, error)

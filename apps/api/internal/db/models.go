@@ -99,6 +99,48 @@ func (ns NullContactMessageStatus) Value() (driver.Value, error) {
 	return string(ns.ContactMessageStatus), nil
 }
 
+type McpTokenScope string
+
+const (
+	McpTokenScopeRead  McpTokenScope = "read"
+	McpTokenScopeAdmin McpTokenScope = "admin"
+)
+
+func (e *McpTokenScope) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = McpTokenScope(s)
+	case string:
+		*e = McpTokenScope(s)
+	default:
+		return fmt.Errorf("unsupported scan type for McpTokenScope: %T", src)
+	}
+	return nil
+}
+
+type NullMcpTokenScope struct {
+	McpTokenScope McpTokenScope `json:"mcp_token_scope"`
+	Valid         bool          `json:"valid"` // Valid is true if McpTokenScope is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullMcpTokenScope) Scan(value interface{}) error {
+	if value == nil {
+		ns.McpTokenScope, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.McpTokenScope.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullMcpTokenScope) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.McpTokenScope), nil
+}
+
 type PostStatus string
 
 const (
@@ -214,6 +256,17 @@ type ContactMessage struct {
 	UserAgentHash string               `json:"user_agent_hash"`
 	Status        ContactMessageStatus `json:"status"`
 	CreatedAt     pgtype.Timestamptz   `json:"created_at"`
+}
+
+type McpToken struct {
+	ID         uuid.UUID          `json:"id"`
+	Name       string             `json:"name"`
+	TokenHash  string             `json:"token_hash"`
+	Scope      McpTokenScope      `json:"scope"`
+	CreatedBy  pgtype.UUID        `json:"created_by"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+	LastUsedAt pgtype.Timestamptz `json:"last_used_at"`
+	RevokedAt  pgtype.Timestamptz `json:"revoked_at"`
 }
 
 type Medium struct {

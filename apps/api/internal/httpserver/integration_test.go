@@ -133,6 +133,61 @@ func TestAPIIntegrationWithPostgres(t *testing.T) {
 		t.Fatal("new password login did not set a session cookie")
 	}
 
+	if _, err := db.Exec(ctx, "DELETE FROM mcp_tokens WHERE name = 'Integration read token'"); err != nil {
+		t.Fatalf("delete existing integration mcp tokens failed: %v", err)
+	}
+
+	createMCPToken := httptest.NewRecorder()
+	createMCPTokenReq := httptest.NewRequest(http.MethodPost, "/api/admin/mcp/tokens", strings.NewReader(`{"name":"Integration read token","scope":"read"}`))
+	createMCPTokenReq.Header.Set("Content-Type", "application/json")
+	createMCPTokenReq.Header.Set("Origin", "http://localhost:3000")
+	for _, cookie := range cookies {
+		createMCPTokenReq.AddCookie(cookie)
+	}
+	handler.ServeHTTP(createMCPToken, createMCPTokenReq)
+	if createMCPToken.Code != http.StatusCreated {
+		t.Fatalf("create mcp token status = %d, body = %s", createMCPToken.Code, createMCPToken.Body.String())
+	}
+	var createdMCPToken struct {
+		ID    string `json:"id"`
+		Name  string `json:"name"`
+		Scope string `json:"scope"`
+		Token string `json:"token"`
+	}
+	if err := json.Unmarshal(createMCPToken.Body.Bytes(), &createdMCPToken); err != nil {
+		t.Fatalf("invalid mcp token JSON: %v", err)
+	}
+	if createdMCPToken.ID == "" || createdMCPToken.Name != "Integration read token" || createdMCPToken.Scope != "read" || !strings.HasPrefix(createdMCPToken.Token, "mcp_read_") {
+		t.Fatalf("unexpected created mcp token = %#v", createdMCPToken)
+	}
+
+	listMCPTokens := httptest.NewRecorder()
+	listMCPTokensReq := httptest.NewRequest(http.MethodGet, "/api/admin/mcp/tokens", nil)
+	for _, cookie := range cookies {
+		listMCPTokensReq.AddCookie(cookie)
+	}
+	handler.ServeHTTP(listMCPTokens, listMCPTokensReq)
+	if listMCPTokens.Code != http.StatusOK {
+		t.Fatalf("list mcp tokens status = %d, body = %s", listMCPTokens.Code, listMCPTokens.Body.String())
+	}
+	if strings.Contains(listMCPTokens.Body.String(), createdMCPToken.Token) {
+		t.Fatal("list mcp tokens leaked the plaintext token")
+	}
+
+	revokeMCPToken := httptest.NewRecorder()
+	revokeMCPTokenReq := httptest.NewRequest(http.MethodDelete, "/api/admin/mcp/tokens/"+createdMCPToken.ID, nil)
+	revokeMCPTokenReq.Header.Set("Origin", "http://localhost:3000")
+	for _, cookie := range cookies {
+		revokeMCPTokenReq.AddCookie(cookie)
+	}
+	handler.ServeHTTP(revokeMCPToken, revokeMCPTokenReq)
+	if revokeMCPToken.Code != http.StatusOK {
+		t.Fatalf("revoke mcp token status = %d, body = %s", revokeMCPToken.Code, revokeMCPToken.Body.String())
+	}
+	if !strings.Contains(revokeMCPToken.Body.String(), `"revokedAt"`) {
+		t.Fatalf("revoke mcp token body = %s, want revokedAt", revokeMCPToken.Body.String())
+	}
+
 	projectSlug := "integration-project-crud"
 	if _, err := db.Exec(ctx, "DELETE FROM projects WHERE slug = $1", projectSlug); err != nil {
 		t.Fatalf("delete existing integration project failed: %v", err)

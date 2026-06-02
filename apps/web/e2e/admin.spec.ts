@@ -347,6 +347,62 @@ test.describe("admin surface", () => {
     expect(deleteRequested).toBe(true);
   });
 
+  test("creates and revokes MCP tokens from the admin console", async ({ page }) => {
+    await signInByCookie(page);
+
+    let tokens: Array<Record<string, unknown>> = [];
+    let createPayload: Record<string, unknown> | null = null;
+    let revoked = false;
+
+    await page.route("**/api/admin/mcp/tokens", async (route) => {
+      if (route.request().method() === "GET") {
+        await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(tokens) });
+        return;
+      }
+      if (route.request().method() === "POST") {
+        createPayload = route.request().postDataJSON() as Record<string, unknown>;
+        tokens = [
+          {
+            id: "mcp-token-1",
+            name: "Claude Desktop read token",
+            scope: "read",
+            createdAt: "2026-06-02T08:00:00Z",
+            lastUsedAt: null,
+            revokedAt: null,
+            token: "mcp_read_generated-secret"
+          }
+        ];
+        await route.fulfill({ status: 201, contentType: "application/json", body: JSON.stringify(tokens[0]) });
+        return;
+      }
+      await route.fallback();
+    });
+
+    await page.route("**/api/admin/mcp/tokens/mcp-token-1", async (route) => {
+      if (route.request().method() === "DELETE") {
+        revoked = true;
+        tokens = tokens.map((token) => ({ ...token, revokedAt: "2026-06-02T08:05:00Z", token: undefined }));
+        await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(tokens[0]) });
+        return;
+      }
+      await route.fallback();
+    });
+
+    await page.goto("/admin/mcp");
+    await expect(page.getByRole("heading", { name: "MCP tokens", exact: true })).toBeVisible();
+    await page.getByLabel("Token name").fill("Claude Desktop read token");
+    await page.getByLabel("Scope").selectOption("read");
+    await page.getByRole("button", { name: "Create token" }).click();
+
+    expect(createPayload).toEqual({ name: "Claude Desktop read token", scope: "read" });
+    await expect(page.getByText("Copy this token now")).toBeVisible();
+    await expect(page.locator("input[readonly]")).toHaveValue("mcp_read_generated-secret");
+
+    await page.getByRole("button", { name: "Revoke" }).click();
+    await expect(page.getByText("Revoked", { exact: true })).toBeVisible();
+    expect(revoked).toBe(true);
+  });
+
   test("creates edits and archives a portfolio project", async ({ page }) => {
     await signInByCookie(page);
 

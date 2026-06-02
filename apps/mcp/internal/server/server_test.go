@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"io"
 	"log/slog"
 	"net/http"
@@ -105,6 +106,57 @@ func TestMCPAdminToolsWorkWithAdminToken(t *testing.T) {
 	}
 }
 
+func TestMCPReadToolsWorkWithDatabaseToken(t *testing.T) {
+	store := newFakeStore()
+	store.tokens[hashToken("database-read-token")] = roleRead
+
+	httpServer := httptest.NewServer(New(Config{AllowedOrigins: []string{"http://localhost:3000"}}, testLogger(), store))
+	t.Cleanup(httpServer.Close)
+
+	client := mcp.NewClient(&mcp.Implementation{Name: "mcp-test", Version: "0.1.0"}, nil)
+	session, err := client.Connect(context.Background(), &mcp.StreamableClientTransport{
+		Endpoint:             httpServer.URL + "/mcp",
+		HTTPClient:           &http.Client{Transport: authTransport{token: "database-read-token", origin: "http://localhost:3000"}},
+		DisableStandaloneSSE: true,
+		MaxRetries:           -1,
+	}, nil)
+	if err != nil {
+		t.Fatalf("Connect failed: %v", err)
+	}
+	defer session.Close()
+
+	if _, err := session.CallTool(context.Background(), &mcp.CallToolParams{Name: "get_profile", Arguments: map[string]any{}}); err != nil {
+		t.Fatalf("CallTool failed: %v", err)
+	}
+	if store.tokenUses[hashToken("database-read-token")] == 0 {
+		t.Fatal("database token was not marked as used")
+	}
+}
+
+func TestMCPEnvTokenWorksWhenDatabaseTokenLookupFails(t *testing.T) {
+	store := newFakeStore()
+	store.authErr = errors.New("mcp token table unavailable")
+
+	httpServer := httptest.NewServer(New(testConfig(), testLogger(), store))
+	t.Cleanup(httpServer.Close)
+
+	client := mcp.NewClient(&mcp.Implementation{Name: "mcp-test", Version: "0.1.0"}, nil)
+	session, err := client.Connect(context.Background(), &mcp.StreamableClientTransport{
+		Endpoint:             httpServer.URL + "/mcp",
+		HTTPClient:           &http.Client{Transport: authTransport{token: "read-token", origin: "http://localhost:3000"}},
+		DisableStandaloneSSE: true,
+		MaxRetries:           -1,
+	}, nil)
+	if err != nil {
+		t.Fatalf("Connect failed: %v", err)
+	}
+	defer session.Close()
+
+	if _, err := session.CallTool(context.Background(), &mcp.CallToolParams{Name: "get_profile", Arguments: map[string]any{}}); err != nil {
+		t.Fatalf("CallTool failed: %v", err)
+	}
+}
+
 func newTestSession(t *testing.T, token string) *mcp.ClientSession {
 	t.Helper()
 	httpServer := httptest.NewServer(New(testConfig(), testLogger(), newFakeStore()))
@@ -147,12 +199,15 @@ func testLogger() *slog.Logger {
 }
 
 type fakeStore struct {
-	mu     sync.Mutex
-	drafts []BlogPost
+	mu        sync.Mutex
+	drafts    []BlogPost
+	tokens    map[string]Role
+	tokenUses map[string]int
+	authErr   error
 }
 
 func newFakeStore() *fakeStore {
-	return &fakeStore{}
+	return &fakeStore{tokens: map[string]Role{}, tokenUses: map[string]int{}}
 }
 
 func (s *fakeStore) GetProfile(context.Context) (Profile, error) {
@@ -199,4 +254,17 @@ func (s *fakeStore) CreateDraftPost(_ context.Context, in DraftPostInput) (BlogP
 
 func (s *fakeStore) ModerateComment(_ context.Context, in ModerateCommentInput) (CommentModeration, error) {
 	return CommentModeration{ID: in.ID, Status: in.Status}, nil
+}
+
+func (s *fakeStore) AuthenticateMCPToken(_ context.Context, tokenHash string) (Role, bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.authErr != nil {
+		return "", false, s.authErr
+	}
+	role, ok := s.tokens[tokenHash]
+	if ok {
+		s.tokenUses[tokenHash]++
+	}
+	return role, ok, nil
 }
