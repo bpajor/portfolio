@@ -298,6 +298,9 @@ esac
 
 ensure_media_permissions
 
+log "Running database migrations"
+docker compose --env-file .env -f compose.yml run --rm -T migrate
+
 log "Recreating application services"
 docker compose --env-file .env -f compose.yml up -d --no-build --force-recreate $release_services
 

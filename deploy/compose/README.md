@@ -9,7 +9,7 @@ Services:
 - `api`: Go REST API.
 - `mcp`: Go MCP server.
 - `postgres`: private PostgreSQL database with no public port.
-- `migrate`: one-shot initial schema bootstrap for an empty database.
+- `migrate`: one-shot schema migration runner. It bootstraps empty databases and applies later schema migrations to existing deployments.
 
 Local development PostgreSQL is available at the repository root in `compose.dev.yml`.
 See `docs/local-development.md` for the current development workflow.
