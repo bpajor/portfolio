@@ -162,7 +162,7 @@ Acceptance criteria:
 
 ## 6. Test MCP Behavior End to End
 
-Status: Completed. Deploy staging now runs a real MCP streamable HTTP smoke test through the IAP tunnel with read/admin bearer tokens loaded from the VM environment, while production smoke verifies `/mcp` remains protected without a token.
+Status: Completed. Deploy staging now runs a real MCP streamable HTTP smoke test, production smoke verifies `/mcp` remains protected without a token, and admin-managed MCP tokens make manual staging/production checks possible without retrieving secrets from the VM.
 
 Problem:
 

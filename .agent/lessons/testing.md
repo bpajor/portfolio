@@ -174,3 +174,25 @@ What I should have done:
 Working rule:
 
 - Live staging tests should keep contract assertions, but must not inherit local timing defaults for proxy-backed client transitions. When the API response is already proven, wait for the related UI transition with an explicit deployed-environment timeout.
+
+## 2026-06-02 - New migrations must be checked against every schema bootstrap path
+
+What happened:
+
+- I added an MCP token table and the API integration test used it directly, but PR CI still built the integration database from only the first schema migration.
+- The migration existed and local generated code compiled, yet CI failed with `relation "mcp_tokens" does not exist`.
+
+Why it happened:
+
+- I verified the migration in the obvious path, but did not search for every script and workflow that manually applies schema SQL.
+- The local migration test also encoded the old assumption that there was only one schema migration, so it did not protect CI from missing later migrations.
+
+What I should have done:
+
+- After adding a migration, search for hardcoded migration filenames and schema setup commands across CI, dev reset scripts, and test helpers.
+- Run the same database setup path that CI uses before trusting integration tests.
+- Add assertions for newly introduced tables or schema objects to migration tests, so missing migrations fail early and clearly.
+
+Working rule:
+
+- New schema migrations require auditing all bootstrap paths, not only the migration file itself. CI setup, local reset, and migration tests should apply every schema migration in order and tear them down in reverse order.

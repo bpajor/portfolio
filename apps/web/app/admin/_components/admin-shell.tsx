@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { FileText, Image, KeyRound, LayoutDashboard, MessageSquare, Settings, ShieldCheck } from "lucide-react";
+import { FileText, Image, KeyRound, LayoutDashboard, MessageSquare, Network, Settings, ShieldCheck } from "lucide-react";
 import { LogoutButton } from "./logout-button";
 
 const nav = [
@@ -9,6 +9,7 @@ const nav = [
   { href: "/admin/comments", label: "Comments", icon: MessageSquare },
   { href: "/admin/projects", label: "Projects", icon: Settings },
   { href: "/admin/media", label: "Media", icon: Image },
+  { href: "/admin/mcp", label: "MCP", icon: Network },
   { href: "/admin/account", label: "Account", icon: KeyRound }
 ];
 

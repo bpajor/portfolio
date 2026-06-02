@@ -61,3 +61,7 @@ func (smokeStore) CreateDraftPost(context.Context, mcpserver.DraftPostInput) (mc
 func (smokeStore) ModerateComment(context.Context, mcpserver.ModerateCommentInput) (mcpserver.CommentModeration, error) {
 	return mcpserver.CommentModeration{}, errors.New("smoke test must not moderate comments")
 }
+
+func (smokeStore) AuthenticateMCPToken(context.Context, string) (mcpserver.Role, bool, error) {
+	return "", false, nil
+}

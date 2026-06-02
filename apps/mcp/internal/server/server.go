@@ -2,7 +2,9 @@ package server
 
 import (
 	"context"
+	"crypto/sha256"
 	"crypto/subtle"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -60,6 +62,7 @@ type Store interface {
 	SearchContent(context.Context, string, int) ([]SearchResult, error)
 	CreateDraftPost(context.Context, DraftPostInput) (BlogPost, error)
 	ModerateComment(context.Context, ModerateCommentInput) (CommentModeration, error)
+	AuthenticateMCPToken(context.Context, string) (Role, bool, error)
 }
 
 type Profile struct {
@@ -212,8 +215,8 @@ func (a *app) health(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
 		"status":          "ok",
 		"database":        dbStatus,
-		"readAuthEnabled": a.cfg.ReadToken != "",
-		"adminAuth":       a.cfg.AdminToken != "",
+		"readAuthEnabled": a.cfg.ReadToken != "" || a.store != nil,
+		"adminAuth":       a.cfg.AdminToken != "" || a.store != nil,
 	})
 }
 
@@ -233,7 +236,12 @@ func (a *app) mcpSecurity(next http.Handler) http.Handler {
 			writeJSON(w, http.StatusForbidden, map[string]string{"error": "origin_not_allowed"})
 			return
 		}
-		role, ok := a.authenticate(r)
+		role, ok, err := a.authenticate(r)
+		if err != nil {
+			a.logger.Error("mcp authentication failed", "error", err)
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "auth_unavailable"})
+			return
+		}
 		if !ok {
 			w.Header().Set("WWW-Authenticate", `Bearer realm="portfolio-mcp"`)
 			writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
@@ -258,18 +266,27 @@ func (a *app) allowOrigin(w http.ResponseWriter, r *http.Request) bool {
 	return false
 }
 
-func (a *app) authenticate(r *http.Request) (Role, bool) {
+func (a *app) authenticate(r *http.Request) (Role, bool, error) {
 	token := bearerToken(r)
 	if token == "" {
-		return "", false
+		return "", false, nil
 	}
 	if a.cfg.AdminToken != "" && constantTimeEqual(token, a.cfg.AdminToken) {
-		return roleAdmin, true
+		return roleAdmin, true, nil
 	}
 	if a.cfg.ReadToken != "" && constantTimeEqual(token, a.cfg.ReadToken) {
-		return roleRead, true
+		return roleRead, true, nil
 	}
-	return "", false
+	if a.store != nil {
+		role, ok, err := a.store.AuthenticateMCPToken(r.Context(), hashToken(token))
+		if err != nil {
+			return "", false, err
+		}
+		if ok {
+			return role, true, nil
+		}
+	}
+	return "", false, nil
 }
 
 func (a *app) mcpServer(role Role) *mcp.Server {
@@ -612,6 +629,35 @@ RETURNING id, post_id, display_name, body, status, moderated_at`, id, in.Status)
 	return c, nil
 }
 
+func (s *SQLStore) AuthenticateMCPToken(ctx context.Context, tokenHash string) (Role, bool, error) {
+	var id uuid.UUID
+	var scope string
+	err := s.db.QueryRow(ctx, `
+SELECT id, scope
+FROM mcp_tokens
+WHERE token_hash = $1
+  AND revoked_at IS NULL`, tokenHash).Scan(&id, &scope)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", false, nil
+	}
+	if err != nil {
+		return "", false, err
+	}
+
+	if _, err := s.db.Exec(ctx, `UPDATE mcp_tokens SET last_used_at = now() WHERE id = $1 AND revoked_at IS NULL`, id); err != nil {
+		return "", false, err
+	}
+
+	switch scope {
+	case string(roleAdmin):
+		return roleAdmin, true, nil
+	case string(roleRead):
+		return roleRead, true, nil
+	default:
+		return "", false, nil
+	}
+}
+
 func createAuditLog(ctx context.Context, tx pgx.Tx, action, entityType, entityID string, metadata map[string]any) error {
 	entityUUID, err := uuid.Parse(entityID)
 	if err != nil {
@@ -685,6 +731,11 @@ func constantTimeEqual(a, b string) bool {
 		return false
 	}
 	return subtle.ConstantTimeCompare([]byte(a), []byte(b)) == 1
+}
+
+func hashToken(token string) string {
+	sum := sha256.Sum256([]byte(token))
+	return hex.EncodeToString(sum[:])
 }
 
 func withSecurityHeaders(next http.Handler) http.Handler {
