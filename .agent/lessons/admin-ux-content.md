@@ -128,3 +128,24 @@ What I should have done:
 Working rule:
 
 - For rich editors, classify controls by editing semantics before implementation: inline marks may work at the cursor, but block transformations need explicit selection rules and preview verification. Test both empty selection and partial selection for toolbar actions.
+
+## 2026-06-04 - Rich editor toolbar apply was tested without testing reversal
+
+What happened:
+
+- H2, H3, list, quote, and code block controls correctly applied to selected text, but clicking the same active control again did not return the selection to normal paragraph text.
+- The issue affected the reversibility of several toolbar controls, not only H2.
+
+Why it happened:
+
+- The fix treated selected block formatting as a one-way replacement operation.
+- The E2E proved that formatting applied to the right text, but did not prove that active formatting could be toggled off.
+
+What I should have done:
+
+- Define toolbar behavior as a full toggle contract: inactive plus selection applies the tool; active plus the same selected block removes it.
+- Test apply and undo/toggle-off for every grouped toolbar action before shipping the rich editor behavior.
+
+Working rule:
+
+- For editor toolbar controls, every toggleable action needs paired tests: apply, active-state behavior, and reversal. Do not consider a formatting control verified until the user can both apply and remove it predictably.

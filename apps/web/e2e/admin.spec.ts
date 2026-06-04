@@ -67,6 +67,10 @@ test.describe("admin surface", () => {
     }, textToSelect);
   }
 
+  async function editorHtml(page: Page) {
+    return page.getByRole("textbox", { name: "Article editor" }).evaluate((element) => element.innerHTML);
+  }
+
   test("requires login before publishing workflows", async ({ page }) => {
     await page.goto("/admin");
     await expect(page).toHaveURL(/\/admin\/login/);
@@ -278,6 +282,40 @@ test.describe("admin surface", () => {
     await expect(preview.locator("h2")).toHaveText("Bravo");
     await expect(preview.locator("p").filter({ hasText: "Alpha" })).toBeVisible();
     await expect(preview.locator("p").filter({ hasText: "Charlie" })).toBeVisible();
+  });
+
+  test("block formatting toolbar toggles selected block formatting off", async ({ page }) => {
+    await signInByCookie(page);
+    await stubEmptyMedia(page);
+
+    const tools = [
+      { label: "Heading 2", applied: "<h2>Bravo</h2>", absentAfterToggle: "<h2>" },
+      { label: "Heading 3", applied: "<h3>Bravo</h3>", absentAfterToggle: "<h3>" },
+      { label: "Bullet list", applied: "<ul><li><p>Bravo</p></li></ul>", absentAfterToggle: "<ul>" },
+      { label: "Numbered list", applied: "<ol><li><p>Bravo</p></li></ol>", absentAfterToggle: "<ol>" },
+      { label: "Quote", applied: "<blockquote><p>Bravo</p></blockquote>", absentAfterToggle: "<blockquote>" },
+      { label: "Code block", applied: "<pre><code>Bravo</code></pre>", absentAfterToggle: "<pre>" }
+    ];
+
+    for (const tool of tools) {
+      await page.goto("/admin/posts/new");
+      const editor = page.getByRole("textbox", { name: "Article editor" });
+      await editor.click();
+      await editor.pressSequentially("Alpha Bravo Charlie", { delay: 10 });
+
+      await selectEditorText(page, "Bravo");
+      await expect(page.getByRole("button", { name: tool.label })).toBeEnabled();
+      await page.getByRole("button", { name: tool.label }).click();
+      expect(await editorHtml(page)).toContain(tool.applied);
+
+      await selectEditorText(page, "Bravo");
+      await expect(page.getByRole("button", { name: tool.label })).toBeEnabled();
+      await page.getByRole("button", { name: tool.label }).click();
+
+      const htmlAfterToggle = await editorHtml(page);
+      expect(htmlAfterToggle).not.toContain(tool.absentAfterToggle);
+      expect(htmlAfterToggle).toContain("<p>Bravo</p>");
+    }
   });
 
   test("keeps the selected Open Graph image when editing a post", async ({ page }) => {

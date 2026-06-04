@@ -6,6 +6,7 @@ import { Editor, EditorContent, useEditor } from "@tiptap/react";
 import Image from "@tiptap/extension-image";
 import StarterKit from "@tiptap/starter-kit";
 import { Markdown } from "@tiptap/markdown";
+import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
 import { Bold, Code, Eye, Heading2, Heading3, Image as ImageIcon, Italic, Link2, List, ListOrdered, Pencil, Quote, Redo2, Undo2, Unlink, Underline as UnderlineIcon } from "lucide-react";
 import type { AdminMediaItem } from "../media/media-model";
 
@@ -21,6 +22,15 @@ type ToolbarButtonProps = {
   disabled?: boolean;
   onClick: () => void;
   children: ReactNode;
+};
+
+type BlockTool = "heading2" | "heading3" | "bulletList" | "orderedList" | "blockquote" | "codeBlock";
+
+type EditorContentNode = {
+  type: string;
+  attrs?: Record<string, unknown>;
+  content?: EditorContentNode[];
+  text?: string;
 };
 
 function toolbarClass(isActive?: boolean) {
@@ -65,30 +75,74 @@ function selectedText(editor: Editor) {
   return editor.state.doc.textBetween(from, to, "\n").trim();
 }
 
-function textContent(text: string) {
+function textContent(text: string): EditorContentNode[] {
   return text ? [{ type: "text", text }] : [];
 }
 
-function replaceSelectionWithBlock(editor: Editor, block: "heading2" | "heading3" | "bulletList" | "orderedList" | "blockquote" | "codeBlock") {
+function paragraphNode(text: string): EditorContentNode {
+  return { type: "paragraph", content: textContent(text) };
+}
+
+function listItemNode(text: string): EditorContentNode {
+  return { type: "listItem", content: [paragraphNode(text)] };
+}
+
+function blockContent(block: BlockTool, text: string): EditorContentNode {
+  return {
+    heading2: { type: "heading", attrs: { level: 2 }, content: textContent(text) },
+    heading3: { type: "heading", attrs: { level: 3 }, content: textContent(text) },
+    bulletList: { type: "bulletList", content: [listItemNode(text)] },
+    orderedList: { type: "orderedList", content: [listItemNode(text)] },
+    blockquote: { type: "blockquote", content: [paragraphNode(text)] },
+    codeBlock: { type: "codeBlock", content: textContent(text) }
+  }[block];
+}
+
+function nodeMatchesBlock(node: ProseMirrorNode, block: BlockTool) {
+  return {
+    heading2: node.type.name === "heading" && node.attrs.level === 2,
+    heading3: node.type.name === "heading" && node.attrs.level === 3,
+    bulletList: node.type.name === "bulletList",
+    orderedList: node.type.name === "orderedList",
+    blockquote: node.type.name === "blockquote",
+    codeBlock: node.type.name === "codeBlock"
+  }[block];
+}
+
+function isBlockToolNode(node: ProseMirrorNode) {
+  return node.type.name === "heading" || node.type.name === "bulletList" || node.type.name === "orderedList" || node.type.name === "blockquote" || node.type.name === "codeBlock";
+}
+
+function selectedBlockRange(editor: Editor) {
+  const text = selectedText(editor);
+  const { $from } = editor.state.selection;
+
+  for (let depth = $from.depth; depth > 0; depth -= 1) {
+    const node = $from.node(depth);
+    if (isBlockToolNode(node) && node.textContent.trim() === text) {
+      return {
+        from: $from.before(depth),
+        to: $from.after(depth),
+        node
+      };
+    }
+  }
+
+  return null;
+}
+
+function replaceSelectionWithBlock(editor: Editor, block: BlockTool) {
   if (!hasSelectedText(editor)) {
     return;
   }
 
   const text = selectedText(editor);
-  const range = {
+  const activeBlock = selectedBlockRange(editor);
+  const range = activeBlock ?? {
     from: editor.state.selection.from,
     to: editor.state.selection.to
   };
-  const paragraph = { type: "paragraph", content: textContent(text) };
-  const listItem = { type: "listItem", content: [paragraph] };
-  const content = {
-    heading2: { type: "heading", attrs: { level: 2 }, content: textContent(text) },
-    heading3: { type: "heading", attrs: { level: 3 }, content: textContent(text) },
-    bulletList: { type: "bulletList", content: [listItem] },
-    orderedList: { type: "orderedList", content: [listItem] },
-    blockquote: { type: "blockquote", content: [paragraph] },
-    codeBlock: { type: "codeBlock", content: textContent(text) }
-  }[block];
+  const content = activeBlock && nodeMatchesBlock(activeBlock.node, block) ? paragraphNode(text) : blockContent(block, text);
 
   editor.chain().focus().insertContentAt(range, content).run();
 }
