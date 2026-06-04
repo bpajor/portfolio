@@ -34,6 +34,39 @@ test.describe("admin surface", () => {
     }
   }
 
+  async function stubEmptyMedia(page: Page) {
+    await page.route("**/api/admin/media", async (route) => {
+      if (route.request().method() === "GET") {
+        await route.fulfill({ status: 200, contentType: "application/json", body: "[]" });
+        return;
+      }
+      await route.fallback();
+    });
+  }
+
+  async function selectEditorText(page: Page, textToSelect: string) {
+    const editor = page.getByRole("textbox", { name: "Article editor" });
+    await editor.evaluate((element, selectedText) => {
+      const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+      let node = walker.nextNode();
+      while (node) {
+        const index = node.textContent?.indexOf(selectedText) ?? -1;
+        if (index >= 0) {
+          const range = document.createRange();
+          range.setStart(node, index);
+          range.setEnd(node, index + selectedText.length);
+          const selection = window.getSelection();
+          selection?.removeAllRanges();
+          selection?.addRange(range);
+          document.dispatchEvent(new Event("selectionchange", { bubbles: true }));
+          return;
+        }
+        node = walker.nextNode();
+      }
+      throw new Error(`Text not found in editor: ${selectedText}`);
+    }, textToSelect);
+  }
+
   test("requires login before publishing workflows", async ({ page }) => {
     await page.goto("/admin");
     await expect(page).toHaveURL(/\/admin\/login/);
@@ -203,6 +236,48 @@ test.describe("admin surface", () => {
     expect(submittedPost.contentHtmlSanitized).toContain("<h2>Intro</h2>");
     expect(submittedPost.contentHtmlSanitized).toContain("<strong>Published body.</strong>");
     expect(submittedPost.contentHtmlSanitized).toContain(`<img src="/api/media/media-hero" alt="Admin E2E hero image">`);
+  });
+
+  test("previews rich article content before publishing", async ({ page }) => {
+    await signInByCookie(page);
+    await stubEmptyMedia(page);
+
+    await page.goto("/admin/posts/new");
+    await page.getByRole("textbox", { name: "Title", exact: true }).fill("Preview Draft");
+    await writeRichArticle(page);
+    await page.getByRole("button", { name: "Preview" }).click();
+
+    const preview = page.getByLabel("Article preview");
+    await expect(preview.getByRole("heading", { name: "Intro", level: 2 })).toBeVisible();
+    await expect(preview.getByText("Published body.")).toBeVisible();
+    await expect(preview.locator("strong")).toHaveText("Published body.");
+  });
+
+  test("block formatting toolbar only applies to selected text", async ({ page }) => {
+    await signInByCookie(page);
+    await stubEmptyMedia(page);
+
+    await page.goto("/admin/posts/new");
+    const editor = page.getByRole("textbox", { name: "Article editor" });
+    await editor.click();
+    await editor.pressSequentially("Alpha Bravo Charlie", { delay: 10 });
+
+    for (const label of ["Heading 2", "Heading 3", "Bullet list", "Numbered list", "Quote", "Code block"]) {
+      await expect(page.getByRole("button", { name: label })).toBeDisabled();
+    }
+
+    await selectEditorText(page, "Bravo");
+    for (const label of ["Heading 2", "Heading 3", "Bullet list", "Numbered list", "Quote", "Code block"]) {
+      await expect(page.getByRole("button", { name: label })).toBeEnabled();
+    }
+
+    await page.getByRole("button", { name: "Heading 2" }).click();
+    await page.getByRole("button", { name: "Preview" }).click();
+
+    const preview = page.getByLabel("Article preview");
+    await expect(preview.locator("h2")).toHaveText("Bravo");
+    await expect(preview.locator("p").filter({ hasText: "Alpha" })).toBeVisible();
+    await expect(preview.locator("p").filter({ hasText: "Charlie" })).toBeVisible();
   });
 
   test("keeps the selected Open Graph image when editing a post", async ({ page }) => {

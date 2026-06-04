@@ -6,7 +6,7 @@ import { Editor, EditorContent, useEditor } from "@tiptap/react";
 import Image from "@tiptap/extension-image";
 import StarterKit from "@tiptap/starter-kit";
 import { Markdown } from "@tiptap/markdown";
-import { Bold, Code, Heading2, Heading3, Image as ImageIcon, Italic, Link2, List, ListOrdered, Quote, Redo2, Undo2, Unlink, Underline as UnderlineIcon } from "lucide-react";
+import { Bold, Code, Eye, Heading2, Heading3, Image as ImageIcon, Italic, Link2, List, ListOrdered, Pencil, Quote, Redo2, Undo2, Unlink, Underline as UnderlineIcon } from "lucide-react";
 import type { AdminMediaItem } from "../media/media-model";
 
 type RichPostEditorProps = {
@@ -52,10 +52,53 @@ function setLink(editor: Editor) {
   editor.chain().focus().extendMarkRange("link").setLink({ href: url.trim(), target: "_blank", rel: "noopener noreferrer" }).run();
 }
 
+function hasSelectedText(editor: Editor | null) {
+  if (!editor) {
+    return false;
+  }
+  const { from, to, empty } = editor.state.selection;
+  return !empty && editor.state.doc.textBetween(from, to, " ").trim().length > 0;
+}
+
+function selectedText(editor: Editor) {
+  const { from, to } = editor.state.selection;
+  return editor.state.doc.textBetween(from, to, "\n").trim();
+}
+
+function textContent(text: string) {
+  return text ? [{ type: "text", text }] : [];
+}
+
+function replaceSelectionWithBlock(editor: Editor, block: "heading2" | "heading3" | "bulletList" | "orderedList" | "blockquote" | "codeBlock") {
+  if (!hasSelectedText(editor)) {
+    return;
+  }
+
+  const text = selectedText(editor);
+  const range = {
+    from: editor.state.selection.from,
+    to: editor.state.selection.to
+  };
+  const paragraph = { type: "paragraph", content: textContent(text) };
+  const listItem = { type: "listItem", content: [paragraph] };
+  const content = {
+    heading2: { type: "heading", attrs: { level: 2 }, content: textContent(text) },
+    heading3: { type: "heading", attrs: { level: 3 }, content: textContent(text) },
+    bulletList: { type: "bulletList", content: [listItem] },
+    orderedList: { type: "orderedList", content: [listItem] },
+    blockquote: { type: "blockquote", content: [paragraph] },
+    codeBlock: { type: "codeBlock", content: textContent(text) }
+  }[block];
+
+  editor.chain().focus().insertContentAt(range, content).run();
+}
+
 export function RichPostEditor({ initialMarkdown = "", initialHtml = "", media = [] }: RichPostEditorProps) {
   const imageSelectRef = useRef<HTMLSelectElement>(null);
   const [markdown, setMarkdown] = useState(initialMarkdown);
   const [html, setHtml] = useState(initialHtml);
+  const [mode, setMode] = useState<"edit" | "preview">("edit");
+  const [selectionAvailable, setSelectionAvailable] = useState(false);
   const [selectedImageId, setSelectedImageId] = useState("");
   const editor = useEditor({
     extensions: [
@@ -91,6 +134,10 @@ export function RichPostEditor({ initialMarkdown = "", initialHtml = "", media =
       const nextMarkdown = (nextEditor as Editor & { getMarkdown: () => string }).getMarkdown();
       setMarkdown(nextMarkdown.trim());
       setHtml(nextEditor.getHTML());
+      setSelectionAvailable(hasSelectedText(nextEditor));
+    },
+    onSelectionUpdate: ({ editor: nextEditor }) => {
+      setSelectionAvailable(hasSelectedText(nextEditor));
     }
   });
   const selectedImage = media.find((item) => item.id === selectedImageId);
@@ -103,22 +150,45 @@ export function RichPostEditor({ initialMarkdown = "", initialHtml = "", media =
     }
     editor.chain().focus().setImage({ src: image.url, alt: image.altText }).run();
   }
+  const hasSelection = selectionAvailable && hasSelectedText(editor);
 
   return (
     <div className="grid gap-2">
-      <span className="text-sm text-slate-300">Article editor</span>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <span className="text-sm text-slate-300">Article editor</span>
+        <div className="inline-flex rounded-md border border-white/10 bg-slate-950 p-1">
+          <button
+            type="button"
+            aria-pressed={mode === "edit"}
+            onClick={() => setMode("edit")}
+            className={`inline-flex h-8 items-center gap-2 rounded px-3 text-sm transition ${mode === "edit" ? "bg-sky-300 text-slate-950" : "text-slate-300 hover:text-white"}`}
+          >
+            <Pencil size={15} aria-hidden="true" />
+            Edit
+          </button>
+          <button
+            type="button"
+            aria-pressed={mode === "preview"}
+            onClick={() => setMode("preview")}
+            className={`inline-flex h-8 items-center gap-2 rounded px-3 text-sm transition ${mode === "preview" ? "bg-sky-300 text-slate-950" : "text-slate-300 hover:text-white"}`}
+          >
+            <Eye size={15} aria-hidden="true" />
+            Preview
+          </button>
+        </div>
+      </div>
       <div className="overflow-hidden rounded-md border border-white/10 bg-slate-950 focus-within:border-sky-300/50">
-        <div className="flex flex-wrap gap-2 border-b border-white/10 bg-slate-900/80 p-2">
+        {mode === "edit" ? <div className="flex flex-wrap gap-2 border-b border-white/10 bg-slate-900/80 p-2">
           <ToolbarButton label="Undo" disabled={!editor?.can().undo()} onClick={() => editor?.chain().focus().undo().run()}>
             <Undo2 size={16} aria-hidden="true" />
           </ToolbarButton>
           <ToolbarButton label="Redo" disabled={!editor?.can().redo()} onClick={() => editor?.chain().focus().redo().run()}>
             <Redo2 size={16} aria-hidden="true" />
           </ToolbarButton>
-          <ToolbarButton label="Heading 2" isActive={editor?.isActive("heading", { level: 2 })} onClick={() => editor?.chain().focus().toggleHeading({ level: 2 }).run()}>
+          <ToolbarButton label="Heading 2" disabled={!hasSelection} isActive={editor?.isActive("heading", { level: 2 })} onClick={() => editor && replaceSelectionWithBlock(editor, "heading2")}>
             <Heading2 size={17} aria-hidden="true" />
           </ToolbarButton>
-          <ToolbarButton label="Heading 3" isActive={editor?.isActive("heading", { level: 3 })} onClick={() => editor?.chain().focus().toggleHeading({ level: 3 }).run()}>
+          <ToolbarButton label="Heading 3" disabled={!hasSelection} isActive={editor?.isActive("heading", { level: 3 })} onClick={() => editor && replaceSelectionWithBlock(editor, "heading3")}>
             <Heading3 size={17} aria-hidden="true" />
           </ToolbarButton>
           <ToolbarButton label="Bold" isActive={editor?.isActive("bold")} onClick={() => editor?.chain().focus().toggleBold().run()}>
@@ -130,16 +200,16 @@ export function RichPostEditor({ initialMarkdown = "", initialHtml = "", media =
           <ToolbarButton label="Underline" isActive={editor?.isActive("underline")} onClick={() => editor?.chain().focus().toggleUnderline().run()}>
             <UnderlineIcon size={16} aria-hidden="true" />
           </ToolbarButton>
-          <ToolbarButton label="Bullet list" isActive={editor?.isActive("bulletList")} onClick={() => editor?.chain().focus().toggleBulletList().run()}>
+          <ToolbarButton label="Bullet list" disabled={!hasSelection} isActive={editor?.isActive("bulletList")} onClick={() => editor && replaceSelectionWithBlock(editor, "bulletList")}>
             <List size={16} aria-hidden="true" />
           </ToolbarButton>
-          <ToolbarButton label="Numbered list" isActive={editor?.isActive("orderedList")} onClick={() => editor?.chain().focus().toggleOrderedList().run()}>
+          <ToolbarButton label="Numbered list" disabled={!hasSelection} isActive={editor?.isActive("orderedList")} onClick={() => editor && replaceSelectionWithBlock(editor, "orderedList")}>
             <ListOrdered size={16} aria-hidden="true" />
           </ToolbarButton>
-          <ToolbarButton label="Quote" isActive={editor?.isActive("blockquote")} onClick={() => editor?.chain().focus().toggleBlockquote().run()}>
+          <ToolbarButton label="Quote" disabled={!hasSelection} isActive={editor?.isActive("blockquote")} onClick={() => editor && replaceSelectionWithBlock(editor, "blockquote")}>
             <Quote size={16} aria-hidden="true" />
           </ToolbarButton>
-          <ToolbarButton label="Code block" isActive={editor?.isActive("codeBlock")} onClick={() => editor?.chain().focus().toggleCodeBlock().run()}>
+          <ToolbarButton label="Code block" disabled={!hasSelection} isActive={editor?.isActive("codeBlock")} onClick={() => editor && replaceSelectionWithBlock(editor, "codeBlock")}>
             <Code size={16} aria-hidden="true" />
           </ToolbarButton>
           <ToolbarButton label="Link" isActive={editor?.isActive("link")} onClick={() => editor && setLink(editor)}>
@@ -166,11 +236,19 @@ export function RichPostEditor({ initialMarkdown = "", initialHtml = "", media =
           <ToolbarButton label="Insert image" disabled={!selectedImage || !editor} onClick={insertSelectedImage}>
             <ImageIcon size={16} aria-hidden="true" />
           </ToolbarButton>
-        </div>
-        <EditorContent
-          editor={editor}
-          className="[&_.ProseMirror>*+*]:mt-4 [&_.ProseMirror_blockquote]:border-l-2 [&_.ProseMirror_blockquote]:border-sky-300/50 [&_.ProseMirror_blockquote]:pl-4 [&_.ProseMirror_code]:rounded [&_.ProseMirror_code]:bg-slate-900 [&_.ProseMirror_code]:px-1 [&_.ProseMirror_h2]:text-2xl [&_.ProseMirror_h2]:font-semibold [&_.ProseMirror_h2]:text-white [&_.ProseMirror_h3]:text-xl [&_.ProseMirror_h3]:font-semibold [&_.ProseMirror_h3]:text-white [&_.ProseMirror_img]:mx-auto [&_.ProseMirror_img]:max-h-[60vh] [&_.ProseMirror_img]:max-w-full [&_.ProseMirror_img]:rounded-md [&_.ProseMirror_img]:border [&_.ProseMirror_img]:border-white/10 [&_.ProseMirror_ol]:list-decimal [&_.ProseMirror_ol]:pl-6 [&_.ProseMirror_pre]:overflow-x-auto [&_.ProseMirror_pre]:rounded-md [&_.ProseMirror_pre]:bg-slate-900 [&_.ProseMirror_pre]:p-4 [&_.ProseMirror_ul]:list-disc [&_.ProseMirror_ul]:pl-6"
-        />
+        </div> : null}
+        {mode === "edit" ? (
+          <EditorContent
+            editor={editor}
+            className="[&_.ProseMirror>*+*]:mt-4 [&_.ProseMirror_blockquote]:border-l-2 [&_.ProseMirror_blockquote]:border-sky-300/50 [&_.ProseMirror_blockquote]:pl-4 [&_.ProseMirror_code]:rounded [&_.ProseMirror_code]:bg-slate-900 [&_.ProseMirror_code]:px-1 [&_.ProseMirror_h2]:text-2xl [&_.ProseMirror_h2]:font-semibold [&_.ProseMirror_h2]:text-white [&_.ProseMirror_h3]:text-xl [&_.ProseMirror_h3]:font-semibold [&_.ProseMirror_h3]:text-white [&_.ProseMirror_img]:mx-auto [&_.ProseMirror_img]:max-h-[60vh] [&_.ProseMirror_img]:max-w-full [&_.ProseMirror_img]:rounded-md [&_.ProseMirror_img]:border [&_.ProseMirror_img]:border-white/10 [&_.ProseMirror_ol]:list-decimal [&_.ProseMirror_ol]:pl-6 [&_.ProseMirror_pre]:overflow-x-auto [&_.ProseMirror_pre]:rounded-md [&_.ProseMirror_pre]:bg-slate-900 [&_.ProseMirror_pre]:p-4 [&_.ProseMirror_ul]:list-disc [&_.ProseMirror_ul]:pl-6"
+          />
+        ) : (
+          <article
+            aria-label="Article preview"
+            className="min-h-80 px-4 py-5 text-base leading-7 text-slate-200 [&>*+*]:mt-4 [&_blockquote]:border-l-2 [&_blockquote]:border-sky-300/50 [&_blockquote]:pl-4 [&_code]:rounded [&_code]:bg-slate-900 [&_code]:px-1 [&_h2]:text-2xl [&_h2]:font-semibold [&_h2]:text-white [&_h3]:text-xl [&_h3]:font-semibold [&_h3]:text-white [&_img]:mx-auto [&_img]:max-h-[60vh] [&_img]:max-w-full [&_img]:rounded-md [&_img]:border [&_img]:border-white/10 [&_ol]:list-decimal [&_ol]:pl-6 [&_pre]:overflow-x-auto [&_pre]:rounded-md [&_pre]:bg-slate-900 [&_pre]:p-4 [&_ul]:list-disc [&_ul]:pl-6"
+            dangerouslySetInnerHTML={{ __html: html || "<p>Nothing to preview yet.</p>" }}
+          />
+        )}
       </div>
       <input type="hidden" name="contentMarkdown" value={markdown} />
       <input type="hidden" name="contentHtmlSanitized" value={html} />

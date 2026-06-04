@@ -106,3 +106,25 @@ What I should have done:
 Working rule:
 
 - For user-uploaded media, verify framing as well as presence. Unless there is a deliberate crop tool or fixed-format slot, preserve the asset's original aspect ratio and test against accidental `object-cover` or fixed-aspect crops.
+
+## 2026-06-04 - Rich editor block tools changed more content than the author intended
+
+What happened:
+
+- Applying H2 in the rich editor changed the whole active paragraph even when the author expected only the selected text to become a heading.
+- With no text selected, block-level toolbar buttons could still act on the current paragraph, making accidental large formatting changes easy.
+
+Why it happened:
+
+- Tiptap block commands such as headings, lists, quotes, and code blocks naturally operate on document blocks, not arbitrary inline text ranges.
+- I initially treated toolbar buttons as simple UI actions instead of checking the editor command semantics from the author's point of view.
+
+What I should have done:
+
+- Identify which controls are inline marks and which are block transformations before exposing them in the toolbar.
+- Test empty-selection and partial-selection behavior for every rich editor control, not only the final submitted HTML.
+- Provide a preview path before publication for rich content, because authoring bugs are otherwise only visible after publishing.
+
+Working rule:
+
+- For rich editors, classify controls by editing semantics before implementation: inline marks may work at the cursor, but block transformations need explicit selection rules and preview verification. Test both empty selection and partial selection for toolbar actions.
