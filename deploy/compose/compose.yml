@@ -113,7 +113,7 @@ services:
       - private
 
   postgres:
-    image: postgres:13
+    image: postgres:18
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
@@ -130,7 +130,7 @@ services:
       - private
 
   migrate:
-    image: postgres:13
+    image: postgres:18
     depends_on:
       postgres:
         condition: service_healthy
