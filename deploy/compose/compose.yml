@@ -2,7 +2,7 @@ name: ${COMPOSE_PROJECT_NAME:-portfolio}
 
 services:
   caddy:
-    image: caddy:2.8-alpine
+    image: caddy:2.11-alpine
     restart: unless-stopped
     depends_on:
       web:
